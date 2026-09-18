@@ -50,7 +50,7 @@ import pandas as pd
 # ─────────────────────────────────────────────────────────────────────────────
 # Paths and constants
 # ─────────────────────────────────────────────────────────────────────────────
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # engines/ (this file lives in engines/scripts/)
 DATA = ROOT / "data"
 PROCESSED = DATA / "processed" / "products.pkl"
 IMAGES = DATA / "images"

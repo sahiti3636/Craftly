@@ -19,7 +19,7 @@ import pytest
 import features as F
 import service as S
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # engines/ (this file lives in engines/scripts/)
 HAS_MODEL = (F.MODEL_DIR / "model.pkl").exists()
 HAS_CACHE = (F.CACHE / "meta.pkl").exists()
 needs_model = pytest.mark.skipif(not HAS_MODEL, reason="trained model not found — run the pipeline first")

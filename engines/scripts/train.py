@@ -45,7 +45,7 @@ from features import (CACHE, CATEGORICAL_STRUCT, EXTRA_FEATURES, FEATURE_NAMES, 
                          MODEL_DIR, STRUCT_FEATURES, TXT_DIM, combined_similarity, top_k_indices)
 
 warnings.filterwarnings("ignore", message=".*eval_set.*deprecated.*")   # LightGBM ≥4.6; kept for older versions
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # engines/ (this file lives in engines/scripts/)
 SEED = 42
 BAND_COVERAGE = 0.80
 K_COMPARABLES = 8

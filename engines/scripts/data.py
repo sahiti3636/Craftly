@@ -49,7 +49,7 @@ from sklearn.model_selection import StratifiedGroupKFold
 from features import (CATEGORIES, HTTP_HEADERS, MATERIAL_SPEC_KEYS, UNKNOWN,
                          _candidate_urls, material_from_text, scrub_text)
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # engines/ (this file lives in engines/scripts/)
 RAW = ROOT / "data" / "raw"
 PROCESSED_DIR = ROOT / "data" / "processed"
 REPORTS = ROOT / "data" / "reports"

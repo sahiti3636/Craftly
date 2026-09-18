@@ -63,7 +63,7 @@ from features import (CATEGORIES, CACHE, IMAGES, MATERIALS, MODEL_DIR, UNKNOWN,
 # macOS) both encoders live in a child process, so the parent holds only the booster's OpenMP runtime.
 
 warnings.filterwarnings("ignore", message=".*does not have valid feature names.*")
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # engines/ (this file lives in engines/scripts/)
 PASSPORT_DIR = ROOT / "data" / "passports"
 ARTISAN_ROSTER = ROOT / "demo_artisans.json"
 PUBLIC_BASE_URL = os.environ.get("B1_PUBLIC_BASE_URL", "http://localhost:8000")
