@@ -1,0 +1,155 @@
+{
+  "_note": "Fictional demo roster used by `service.py demo` and POST /api/bulk-order when no artisans are sent. In production this list comes from the B2 platform database. units_per_day drives deadline-aware capacity pooling.",
+  "artisans": [
+    {
+      "id": "A001",
+      "name": "Lakshmi Devi",
+      "region": "Pochampally, Telangana",
+      "craft_cluster": "Ikat weaving",
+      "capacity": 160,
+      "compatible_categories": [
+        "apparel",
+        "home_furnishing"
+      ],
+      "units_per_day": 6
+    },
+    {
+      "id": "A002",
+      "name": "Ramesh Kumar",
+      "region": "Moradabad, Uttar Pradesh",
+      "craft_cluster": "Brassware",
+      "capacity": 150,
+      "compatible_categories": [
+        "home_decor",
+        "kitchen_dining",
+        "jewellery"
+      ],
+      "units_per_day": 5
+    },
+    {
+      "id": "A003",
+      "name": "Fatima Begum",
+      "region": "Channapatna, Karnataka",
+      "craft_cluster": "Lacquered wooden toys",
+      "capacity": 140,
+      "compatible_categories": [
+        "toys_games",
+        "home_decor",
+        "stationery"
+      ],
+      "units_per_day": 5
+    },
+    {
+      "id": "A004",
+      "name": "Suresh Prajapati",
+      "region": "Khurja, Uttar Pradesh",
+      "craft_cluster": "Pottery",
+      "capacity": 130,
+      "compatible_categories": [
+        "kitchen_dining",
+        "home_decor"
+      ],
+      "units_per_day": 4.5
+    },
+    {
+      "id": "A005",
+      "name": "Meena Kumari",
+      "region": "Bagru, Rajasthan",
+      "craft_cluster": "Block printing",
+      "capacity": 120,
+      "compatible_categories": [
+        "apparel",
+        "home_furnishing",
+        "bags_accessories"
+      ],
+      "units_per_day": 4
+    },
+    {
+      "id": "A006",
+      "name": "Anil Oraon",
+      "region": "Bastar, Chhattisgarh",
+      "craft_cluster": "Dhokra metal craft",
+      "capacity": 90,
+      "compatible_categories": [
+        "home_decor",
+        "jewellery"
+      ],
+      "units_per_day": 3
+    },
+    {
+      "id": "A007",
+      "name": "Kavitha Reddy",
+      "region": "Nirmal, Telangana",
+      "craft_cluster": "Nirmal painting",
+      "capacity": 80,
+      "compatible_categories": [
+        "home_decor",
+        "furniture",
+        "stationery"
+      ],
+      "units_per_day": 3
+    },
+    {
+      "id": "A008",
+      "name": "Gurpreet Kaur",
+      "region": "Patiala, Punjab",
+      "craft_cluster": "Jutti making",
+      "capacity": 75,
+      "compatible_categories": [
+        "footwear",
+        "bags_accessories"
+      ],
+      "units_per_day": 2.5
+    },
+    {
+      "id": "A009",
+      "name": "Joseph Thomas",
+      "region": "Alappuzha, Kerala",
+      "craft_cluster": "Coir products",
+      "capacity": 70,
+      "compatible_categories": [
+        "home_furnishing",
+        "home_decor",
+        "bags_accessories"
+      ],
+      "units_per_day": 2.5
+    },
+    {
+      "id": "A010",
+      "name": "Sunita Bai",
+      "region": "Kutch, Gujarat",
+      "craft_cluster": "Embroidery",
+      "capacity": 60,
+      "compatible_categories": [
+        "apparel",
+        "bags_accessories",
+        "home_furnishing",
+        "jewellery"
+      ],
+      "units_per_day": 2
+    },
+    {
+      "id": "A011",
+      "name": "Mohan Lal",
+      "region": "Kolhapur, Maharashtra",
+      "craft_cluster": "Leather footwear",
+      "capacity": 55,
+      "compatible_categories": [
+        "footwear"
+      ],
+      "units_per_day": 2
+    },
+    {
+      "id": "A012",
+      "name": "Parvati Munda",
+      "region": "Khunti, Jharkhand",
+      "craft_cluster": "Bamboo craft",
+      "capacity": 0,
+      "compatible_categories": [
+        "home_decor",
+        "kitchen_dining"
+      ],
+      "units_per_day": 0
+    }
+  ]
+}

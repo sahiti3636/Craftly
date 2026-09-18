@@ -1,0 +1,30 @@
+# Python 3.10+  (tested with 3.11)
+numpy>=1.24
+pandas>=2.1
+scikit-learn>=1.3
+joblib>=1.3
+requests>=2.31
+pillow>=10.0
+
+# encoders (Apple Silicon: the default PyPI wheels include MPS support)
+torch>=2.2
+torchvision>=0.17
+open_clip_torch>=2.24
+sentence-transformers>=3.0
+
+# regressors
+lightgbm>=4.3
+xgboost>=2.0
+
+# API + passport
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
+qrcode[pil]>=7.4
+
+# data download
+kaggle>=1.6
+
+# tests
+pytest>=8.0
+httpx>=0.27

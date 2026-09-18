@@ -14,3 +14,5 @@ processed_images/
 *.onnx
 *.pth
 .u2net/
+engines/data/
+engines/models/
