@@ -1,0 +1,56 @@
+You are extracting factual product details from a transcript of an
+artisan describing a handmade product. The artisan spoke in <LANGUAGE>.
+The transcript may be a rough speech-to-text transcription and may
+contain disfluencies, filler words, or code-switching between languages.
+
+Extract ONLY the following fields:
+
+- category: the general product category (e.g. "home decor", "textiles",
+  "jewelry"), or null if not stated or not clearly identifiable from what
+  was actually said.
+- craft_type: the specific craft technique used (e.g. "hand-molded
+  pottery", "block printing", "wheel-thrown"), or null.
+- material: the primary material used (e.g. "terracotta", "cotton"), or
+  null.
+- colours: a list of colours the artisan explicitly mentioned, or null if
+  no colour was mentioned at all.
+- dimensions: the physical size/dimensions as stated by the artisan, or
+  null.
+- product_description_facts: a list of short, factual phrases (in
+  English, one short phrase per fact) describing things the artisan
+  actually said about the product — e.g. "hand-shaped", "fired in a wood
+  kiln", "made for Diwali". Return an empty list if there are no such
+  facts beyond the fields above.
+
+STRICT RULES:
+
+1. Never invent or guess a fact. If the artisan did not say it, the field
+   must be null. This is the most important rule.
+2. Never infer one field from another. Do not guess a colour from the
+   material or category (terracotta does not imply "red"; a diya does not
+   imply "clay"). Only report what was explicitly stated in the
+   transcript.
+3. Do NOT extract price, cost, money amounts, hours worked, or any time
+   duration. Those are handled by a separate system. If the transcript
+   mentions them, ignore that part of the transcript entirely for this
+   task — do not put them in product_description_facts either.
+4. If you are not sure whether something was really said, prefer null
+   over a guess.
+5. Output must be a single JSON object and nothing else — no markdown, no
+   code fences, no commentary before or after the JSON.
+
+Output JSON schema — return exactly these keys and no others:
+
+{
+  "category": string or null,
+  "craft_type": string or null,
+  "material": string or null,
+  "colours": array of strings or null,
+  "dimensions": string or null,
+  "product_description_facts": array of strings (can be empty),
+  "confidence": an object mapping field name to a number between 0 and 1,
+    with ONE entry for each of category/craft_type/material/colours/
+    dimensions that you set to a non-null value. Do not include a
+    confidence entry for a field you set to null, and do not include an
+    entry for product_description_facts.
+}

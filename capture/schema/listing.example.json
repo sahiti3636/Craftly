@@ -1,0 +1,33 @@
+{
+  "listing_id": "lst_9f8a2e1c4b3d",
+  "artisan_id": "art_7c1b2a3d",
+  "source_language": "hi",
+  "transcript_raw": "Yeh maine mitti se bana hua diya hai, haath se banaya, do rang mein - laal aur sunehra. Isme lagbhag teen ghante lage aur material ka kharcha pachaas rupaye tha.",
+  "title_en": "Handmade Terracotta Diya",
+  "title_hi": "हस्तनिर्मित मिट्टी का दीया",
+  "description_en": "A hand-shaped terracotta oil lamp in red and gold, traditionally made for festive lighting. Fired and finished entirely by hand.",
+  "description_hi": "हाथ से बनाया गया मिट्टी का दीया, लाल और सुनहरे रंग में, त्योहारों की रोशनी के लिए पारंपरिक रूप से बनाया गया।",
+  "summary_spoken": "Yeh ek haath se bana laal-sunehra mitti ka diya hai.",
+  "category": "home decor",
+  "craft_type": "hand-molded pottery",
+  "material": "terracotta",
+  "colours": ["red", "gold"],
+  "dimensions": "8cm x 8cm x 4cm",
+  "material_cost_inr": 50,
+  "hours_worked": 3.0,
+  "confidence": {
+    "title_en": 0.94,
+    "title_hi": 0.94,
+    "category": 0.88,
+    "craft_type": 0.81,
+    "material": 0.97,
+    "colours": 0.9,
+    "material_cost_inr": 0.99,
+    "hours_worked": 0.99,
+    "dimensions": 0.4
+  },
+  "needs_confirmation": ["dimensions"],
+  "image_original_url": "https://storage.craftly.dev/original/lst_9f8a2e1c4b3d.jpg",
+  "image_clean_url": "https://storage.craftly.dev/clean/lst_9f8a2e1c4b3d.jpg",
+  "created_at": "2026-09-18T05:32:10.123456+00:00"
+}

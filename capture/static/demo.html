@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>craftly — create listing (demo)</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    max-width: 1000px;
+    color: #111;
+    background: #fff;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 18px 0 6px; border-bottom: 1px solid #ddd; padding-bottom: 3px; }
+  p.hint { color: #555; margin: 0 0 16px; font-size: 13px; }
+  form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px 16px;
+    align-items: end;
+    border: 1px solid #ccc;
+    padding: 14px;
+    border-radius: 4px;
+    background: #fafafa;
+  }
+  label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 3px; }
+  input[type=text] { width: 100%; padding: 5px; font-size: 13px; }
+  input[type=file] { font-size: 12px; }
+  button {
+    grid-column: 1 / -1;
+    padding: 9px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    background: #222;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+  }
+  button:disabled { background: #888; cursor: default; }
+  #status { margin: 12px 0; font-size: 13px; font-weight: 600; min-height: 18px; }
+  .error-text { color: #b00020; }
+  .ok-text { color: #0a7a2f; }
+  #result { display: none; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 8px; }
+  .col { flex: 1; min-width: 280px; }
+  img#cleanImg { max-width: 100%; max-height: 320px; border: 1px solid #ccc; display: block; background: #f0f0f0; }
+  pre {
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    padding: 8px;
+    font-size: 12px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 220px;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border: 1px solid #ddd; padding: 4px 8px; text-align: left; vertical-align: top; }
+  th { background: #f0f0f0; width: 160px; }
+  tr.flagged td { background: #fff6e0; }
+  .flag-tag { color: #a15c00; font-weight: 600; font-size: 11px; margin-left: 6px; }
+  .errors-list { color: #b00020; font-size: 13px; }
+  audio { width: 100%; margin-top: 4px; }
+  details summary { cursor: pointer; font-size: 13px; font-weight: 600; margin: 10px 0 2px; }
+</style>
+</head>
+<body>
+
+<h1>craftly — create listing</h1>
+<p class="hint">
+  Upload a product photo and an audio description. Calls
+  <code>POST /listing/create</code> directly and shows everything it
+  returns on this one page.
+</p>
+
+<form id="createForm">
+  <div>
+    <label for="artisanId">Artisan ID</label>
+    <input type="text" id="artisanId" value="demo_artisan">
+  </div>
+  <div>
+    <label for="languageHint">Language hint (optional)</label>
+    <input type="text" id="languageHint" placeholder="e.g. hi — blank to auto-detect">
+  </div>
+  <div>
+    <label for="imageFile">Product photo</label>
+    <input type="file" id="imageFile" accept="image/*" required>
+  </div>
+  <div>
+    <label for="audioFile">Audio recording</label>
+    <input type="file" id="audioFile" accept="audio/*" required>
+  </div>
+  <button type="submit" id="submitBtn">Create listing</button>
+</form>
+
+<div id="status"></div>
+
+<div id="result">
+
+  <div class="row">
+    <div class="col">
+      <h2>Cleaned photo</h2>
+      <img id="cleanImg" alt="cleaned product photo">
+    </div>
+    <div class="col">
+      <h2>Transcript</h2>
+      <pre id="transcript"></pre>
+      <h2>Spoken summary</h2>
+      <div id="summaryText" style="font-size:13px; margin-bottom:4px;"></div>
+      <audio id="summaryAudio" controls></audio>
+      <div id="noAudio" style="font-size:12px; color:#888;"></div>
+    </div>
+  </div>
+
+  <h2>Extracted fields</h2>
+  <table id="fieldsTable"></table>
+
+  <h2>Generated descriptions</h2>
+  <table>
+    <tr><th>title_en</th><td id="titleEn"></td></tr>
+    <tr><th>title_hi</th><td id="titleHi"></td></tr>
+    <tr><th>description_en</th><td id="descEn"></td></tr>
+    <tr><th>description_hi</th><td id="descHi"></td></tr>
+  </table>
+
+  <h2>Errors <span style="font-weight:normal; color:#888;">(stage failure codes — a stage failing here still degrades gracefully, it doesn't fail the request)</span></h2>
+  <div id="errorsBox" class="errors-list">(none)</div>
+
+  <h2>Timing (debug)</h2>
+  <pre id="debugBox"></pre>
+
+  <details>
+    <summary>Raw JSON response</summary>
+    <pre id="rawJson"></pre>
+  </details>
+
+</div>
+
+<script>
+const form = document.getElementById('createForm');
+const statusEl = document.getElementById('status');
+const resultEl = document.getElementById('result');
+const submitBtn = document.getElementById('submitBtn');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  resultEl.style.display = 'none';
+  submitBtn.disabled = true;
+  statusEl.innerHTML = 'Processing — this runs real ASR / background removal / an LLM call, can take several seconds...';
+
+  const formData = new FormData();
+  formData.append('artisan_id', document.getElementById('artisanId').value.trim() || 'demo_artisan');
+  const langHint = document.getElementById('languageHint').value.trim();
+  if (langHint) formData.append('language_hint', langHint);
+  formData.append('image', document.getElementById('imageFile').files[0]);
+  formData.append('audio', document.getElementById('audioFile').files[0]);
+
+  const clientStart = performance.now();
+  try {
+    const resp = await fetch('/listing/create', { method: 'POST', body: formData });
+    const clientElapsed = ((performance.now() - clientStart) / 1000).toFixed(2);
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      statusEl.innerHTML = `<span class="error-text">Request failed (HTTP ${resp.status}) after ${clientElapsed}s</span>`;
+      document.getElementById('rawJson').textContent = JSON.stringify(data, null, 2);
+      resultEl.style.display = 'block';
+      return;
+    }
+
+    const serverTotal = data.debug && data.debug.total_sec ? Number(data.debug.total_sec).toFixed(2) : '?';
+    const errorNote = (data.errors && data.errors.length) ? ` — ${data.errors.length} stage error(s)` : '';
+    statusEl.innerHTML = `<span class="ok-text">Done in ${clientElapsed}s (server: ${serverTotal}s)${errorNote}</span>`;
+    renderResult(data);
+    resultEl.style.display = 'block';
+  } catch (err) {
+    statusEl.innerHTML = `<span class="error-text">${err}</span>`;
+  } finally {
+    submitBtn.disabled = false;
+  }
+});
+
+function textOrPlaceholder(value, placeholder) {
+  return (value === null || value === undefined || value === '') ? `<em>${placeholder}</em>` : value;
+}
+
+function renderResult(data) {
+  const listing = data.listing;
+
+  const imgUrl = listing.image_clean_url || listing.image_original_url || '';
+  document.getElementById('cleanImg').src = imgUrl;
+
+  document.getElementById('transcript').textContent = listing.transcript_raw || '(empty)';
+
+  const audioEl = document.getElementById('summaryAudio');
+  const noAudioEl = document.getElementById('noAudio');
+  document.getElementById('summaryText').textContent = listing.summary_spoken || '';
+  if (data.summary_audio_url) {
+    audioEl.src = data.summary_audio_url;
+    audioEl.style.display = 'block';
+    noAudioEl.textContent = '';
+  } else {
+    audioEl.style.display = 'none';
+    noAudioEl.textContent = 'no audio generated';
+  }
+
+  const fields = ['category', 'craft_type', 'material', 'colours', 'dimensions', 'material_cost_inr', 'hours_worked'];
+  const needsConfirmation = new Set(listing.needs_confirmation || []);
+  let rows = '<tr><th>Field</th><th>Value</th><th>Confidence</th></tr>';
+  for (const f of fields) {
+    const flagged = needsConfirmation.has(f);
+    const raw = listing[f];
+    const value = (raw === null || raw === undefined) ? '<em>null</em>' : (Array.isArray(raw) ? raw.join(', ') : raw);
+    const conf = (listing.confidence && listing.confidence[f] !== undefined) ? Number(listing.confidence[f]).toFixed(2) : '';
+    const tag = flagged ? '<span class="flag-tag">NEEDS CONFIRMATION</span>' : '';
+    rows += `<tr${flagged ? ' class="flagged"' : ''}><td>${f}${tag}</td><td>${value}</td><td>${conf}</td></tr>`;
+  }
+  document.getElementById('fieldsTable').innerHTML = rows;
+
+  document.getElementById('titleEn').innerHTML = textOrPlaceholder(listing.title_en, 'none');
+  document.getElementById('titleHi').innerHTML = textOrPlaceholder(listing.title_hi, 'none');
+  document.getElementById('descEn').innerHTML = textOrPlaceholder(listing.description_en, 'none');
+  document.getElementById('descHi').innerHTML = textOrPlaceholder(listing.description_hi, 'none');
+
+  const errorsBox = document.getElementById('errorsBox');
+  errorsBox.textContent = (data.errors && data.errors.length) ? data.errors.join(', ') : '(none)';
+
+  document.getElementById('debugBox').textContent = JSON.stringify(data.debug || {}, null, 2);
+  document.getElementById('rawJson').textContent = JSON.stringify(data, null, 2);
+}
+</script>
+
+</body>
+</html>

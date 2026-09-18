@@ -1,0 +1,237 @@
+[
+  {
+    "id": "t01_single_cost_single_duration",
+    "language": "hi",
+    "transcript": "yeh mitti ka diya hai, laal aur sunehra rang, isme teen ghante lage aur material ka cost paanch sau rupaye tha",
+    "mock_llm_extraction": {
+      "category": "home decor",
+      "craft_type": "hand-molded pottery",
+      "material": "terracotta",
+      "colours": ["red", "gold"],
+      "dimensions": null,
+      "product_description_facts": ["hand-molded"],
+      "confidence": {
+        "category": 0.9,
+        "craft_type": 0.85,
+        "material": 0.95,
+        "colours": 0.9
+      }
+    }
+  },
+  {
+    "id": "t02_missing_cost_and_duration",
+    "language": "hi",
+    "transcript": "yeh ek sundar tokri hai bans se bani, haath se buni gayi",
+    "mock_llm_extraction": {
+      "category": "home decor",
+      "craft_type": "basket weaving",
+      "material": "bamboo",
+      "colours": null,
+      "dimensions": null,
+      "product_description_facts": ["woven by hand"],
+      "confidence": {
+        "category": 0.8,
+        "craft_type": 0.85,
+        "material": 0.9
+      }
+    }
+  },
+  {
+    "id": "t03_code_switched_english_number",
+    "language": "hi",
+    "transcript": "material ka cost one twenty rupaye tha aur teen ghante lage isme",
+    "mock_llm_extraction": {
+      "category": "home decor",
+      "craft_type": null,
+      "material": null,
+      "colours": null,
+      "dimensions": null,
+      "product_description_facts": [],
+      "confidence": {
+        "category": 0.6
+      }
+    }
+  },
+  {
+    "id": "t04_multiple_cost_mentions_ambiguous",
+    "language": "hi",
+    "transcript": "cost paanch sau rupaye tha, nahi nahi, teen sau rupaye tha shayad",
+    "mock_llm_extraction": {
+      "category": null,
+      "craft_type": null,
+      "material": null,
+      "colours": null,
+      "dimensions": null,
+      "product_description_facts": [],
+      "confidence": {}
+    }
+  },
+  {
+    "id": "t05_multiple_duration_mentions_ambiguous",
+    "language": "hi",
+    "transcript": "do ghante lage bananan mein, ya shayad teen ghante lage the",
+    "mock_llm_extraction": {
+      "category": null,
+      "craft_type": null,
+      "material": null,
+      "colours": null,
+      "dimensions": null,
+      "product_description_facts": [],
+      "confidence": {}
+    }
+  },
+  {
+    "id": "t06_hindi_fraction_money_and_duration",
+    "language": "hi",
+    "transcript": "sava sau rupaye ka saman laga aur dedh ghante ka kaam tha",
+    "mock_llm_extraction": {
+      "category": "home decor",
+      "craft_type": "hand-molded pottery",
+      "material": "terracotta",
+      "colours": null,
+      "dimensions": null,
+      "product_description_facts": ["hand-molded"],
+      "confidence": {
+        "category": 0.7,
+        "craft_type": 0.7,
+        "material": 0.75
+      }
+    }
+  },
+  {
+    "id": "t07_day_based_duration",
+    "language": "hi",
+    "transcript": "isko banane mein poore do din lage",
+    "mock_llm_extraction": {
+      "category": null,
+      "craft_type": null,
+      "material": null,
+      "colours": null,
+      "dimensions": null,
+      "product_description_facts": [],
+      "confidence": {}
+    }
+  },
+  {
+    "id": "t08_distractor_hundred_percent_no_cost_no_duration",
+    "language": "hi",
+    "transcript": "yeh hundred percent cotton hai, koi cost nahi bataya maine",
+    "mock_llm_extraction": {
+      "category": "textiles",
+      "craft_type": null,
+      "material": "cotton",
+      "colours": null,
+      "dimensions": null,
+      "product_description_facts": [],
+      "confidence": {
+        "category": 0.7,
+        "material": 0.9
+      }
+    }
+  },
+  {
+    "id": "t09_distractor_phone_number_single_cost",
+    "language": "hi",
+    "transcript": "mera number hai 9876543210, cost paanch sau rupaye tha isme",
+    "mock_llm_extraction": {
+      "category": null,
+      "craft_type": null,
+      "material": null,
+      "colours": null,
+      "dimensions": null,
+      "product_description_facts": [],
+      "confidence": {}
+    }
+  },
+  {
+    "id": "t10_marker_before_number",
+    "language": "hi",
+    "transcript": "rupaye teen sau mein bana yeh saman",
+    "mock_llm_extraction": {
+      "category": null,
+      "craft_type": null,
+      "material": null,
+      "colours": null,
+      "dimensions": null,
+      "product_description_facts": [],
+      "confidence": {}
+    }
+  },
+  {
+    "id": "t11_lakh_scale_money_minutes_duration",
+    "language": "hi",
+    "transcript": "ek lakh rupaye ka order tha, packing mein tees minute lage",
+    "mock_llm_extraction": {
+      "category": "textiles",
+      "craft_type": "handloom weaving",
+      "material": "silk",
+      "colours": null,
+      "dimensions": null,
+      "product_description_facts": ["bulk order", "packed by hand"],
+      "confidence": {
+        "category": 0.6,
+        "craft_type": 0.65,
+        "material": 0.7
+      }
+    }
+  },
+  {
+    "id": "t12_explicit_no_cost_stated",
+    "language": "hi",
+    "transcript": "material ka koi cost nahi tha, mujhe muft mein mila tha",
+    "mock_llm_extraction": {
+      "category": null,
+      "craft_type": null,
+      "material": null,
+      "colours": null,
+      "dimensions": null,
+      "product_description_facts": ["material was received for free"],
+      "confidence": {}
+    }
+  },
+  {
+    "id": "t13_currency_word_no_number_nearby",
+    "language": "hi",
+    "transcript": "kuch rupaye laga tha usme, yaad nahi kitna",
+    "mock_llm_extraction": {
+      "category": null,
+      "craft_type": null,
+      "material": null,
+      "colours": null,
+      "dimensions": null,
+      "product_description_facts": [],
+      "confidence": {}
+    }
+  },
+  {
+    "id": "t14_mixed_order_english_duration_hindi_cost",
+    "language": "hi",
+    "transcript": "it took two hours to make and paanch sau rupaye ka material tha",
+    "mock_llm_extraction": {
+      "category": null,
+      "craft_type": null,
+      "material": null,
+      "colours": null,
+      "dimensions": null,
+      "product_description_facts": [],
+      "confidence": {}
+    }
+  },
+  {
+    "id": "t15_large_compound_money_unsupported_duration_unit",
+    "language": "hi",
+    "transcript": "teen lakh pachaas hazaar rupaye ka bada order tha, poora hafta laga isme",
+    "mock_llm_extraction": {
+      "category": "textiles",
+      "craft_type": "handloom weaving",
+      "material": null,
+      "colours": null,
+      "dimensions": null,
+      "product_description_facts": ["bulk order"],
+      "confidence": {
+        "category": 0.6,
+        "craft_type": 0.6
+      }
+    }
+  }
+]

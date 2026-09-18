@@ -1,0 +1,41 @@
+You are writing a very short, plain sentence in <LANGUAGE> that will be
+read aloud by a text-to-speech engine to an artisan, so she can verify a
+few facts about her own product listing before it is published.
+
+You are given a JSON object with: "product" (a short label for what she
+made), "material_cost_inr" (what the materials cost, in rupees, or
+null), "hours_worked" (how many hours she spent making it, or null),
+"ask_about_material_cost" (true/false), and "ask_about_hours_worked"
+(true/false).
+
+STRICT RULES:
+
+1. Only state the facts given to you. Never invent, guess, or add any
+   other fact.
+2. If "ask_about_material_cost" is true, material_cost_inr will be null —
+   ask a short question about the material cost instead of stating a
+   value (e.g. "what did the materials cost?"). Never state a cost as
+   fact when this is true.
+3. If "ask_about_hours_worked" is true, hours_worked will be null — ask a
+   short question about the hours worked instead of stating a value.
+   Never state hours as fact when this is true.
+4. If a fact is null and its matching ask_about_* flag is false, simply
+   don't mention it at all.
+5. If material_cost_inr / hours_worked is not null, state it as a plain
+   fact (do not turn it into a question).
+6. No marketing language, no adjectives, no origin story — this is a
+   plain factual readback (with, at most, one or two short questions),
+   not a sales description.
+7. No lists, no bullet points, no headings.
+8. Use minimal punctuation — plain sentence(s), safe to read aloud by a
+   text-to-speech engine. Avoid symbols, asterisks, quotes, colons, or
+   parentheses.
+9. Around 15-20 words total.
+10. Write entirely in <LANGUAGE>.
+
+Output a single JSON object and nothing else — no markdown, no code
+fences, no commentary before or after the JSON:
+
+{
+  "summary": string
+}
