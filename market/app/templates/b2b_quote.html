@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}Bulk quote — {{ card.title(lang) }} — Craftly{% endblock %}
+
+{% block main %}
+<div class="wrap split">
+
+  <div>
+    <a class="small muted" href="/b2b">← All bulk-order pieces</a>
+    <h1 style="margin-top:10px">{{ card.title(lang) }}</h1>
+    <p class="muted" style="margin-top:0">
+      {{ card.listing.craft_type or card.craft }}{% if card.place %} · {{ card.place }}{% endif %}
+    </p>
+
+    {% if card.image_url %}
+      <img src="{{ card.image_url }}" alt="{{ card.title(lang) }}"
+           style="border-radius:var(--radius);border:1px solid var(--line)">
+    {% endif %}
+
+    <div class="panel" style="margin-top:18px">
+      <div class="panel-title">Capacity</div>
+      <table class="data">
+        <tr><td>Ready now</td><td class="num">{{ card.inventory.sellable_now }}</td></tr>
+        <tr><td>This artisan, per month</td><td class="num">{{ card.inventory.monthly_capacity or '—' }}</td></tr>
+        <tr><td>Whole cluster, per month</td><td class="num">{{ card.inventory.cluster_capacity or '—' }}</td></tr>
+        <tr><td>Lead time on the first unit</td><td class="num">{{ card.inventory.lead_time_days or '—' }} days</td></tr>
+      </table>
+      <p class="small muted" style="margin-bottom:0">
+        The cluster could take on about <strong>{{ ceiling }}</strong> units with no deadline.
+      </p>
+    </div>
+  </div>
+
+  <div>
+    <form class="panel" method="get" action="/b2b/{{ card.listing_id }}">
+      <div class="panel-title">Get a quote</div>
+      <div class="field-row">
+        <div>
+          <label for="quantity">How many?</label>
+          <input type="number" id="quantity" name="quantity" min="{{ min_quantity }}"
+                 value="{{ requested_quantity or 100 }}" required>
+        </div>
+        <div>
+          <label for="deadline">Needed by (optional)</label>
+          <input type="date" id="deadline" name="deadline" value="{{ requested_deadline }}">
+        </div>
+      </div>
+      <button class="btn wide" type="submit" style="margin-top:14px">Quote it</button>
+      <p class="small muted" style="margin-bottom:0">
+        Minimum {{ min_quantity }} units. Volume discounts come out of the marketplace's
+        margin, never out of the artisan's wage floor.
+      </p>
+    </form>
+
+    {% if quote %}
+      {% if rejected %}
+        <div class="note bad">
+          This quote can no longer be honoured — capacity moved while the form was open.
+          The numbers below are current.
+        </div>
+      {% endif %}
+
+      {% for error in quote.errors %}
+        <div class="note bad">{{ error }}</div>
+      {% endfor %}
+
+      {% if quote.split.feasible and not quote.errors %}
+        <div class="panel">
+          <div class="panel-title">Quote</div>
+          <table class="data">
+            <tr>
+              <td>{{ quote.quantity }} units at {{ quote.unit_price }}</td>
+              <td class="num tabular"><strong>{{ quote.subtotal }}</strong></td>
+            </tr>
+            <tr>
+              <td>Retail price per unit</td>
+              <td class="num tabular muted">{{ rupees(quote.retail_unit_price_inr) }}</td>
+            </tr>
+            {% if quote.saving_pct %}
+              <tr>
+                <td>Volume saving</td>
+                <td class="num">{{ quote.saving_pct }}%</td>
+              </tr>
+            {% endif %}
+            <tr>
+              <td>Ready in</td>
+              <td class="num">{{ quote.split.lead_time_days }} days</td>
+            </tr>
+          </table>
+
+          <div class="note good" style="margin-top:14px">
+            <strong>{{ quote.artisan_total }}</strong> of this order reaches
+            {{ quote.households_line }} directly — {{ rupees(quote.artisan_take_home_inr) }}
+            per unit, above the wage floor on every one.
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">Who makes it</div>
+          <table class="data">
+            <tr><th>Artisan</th><th>Village</th><th class="num">Units</th><th class="num">Days</th></tr>
+            {% for a in quote.split.allocations %}
+              <tr>
+                <td>{{ a.artisan_name }}</td>
+                <td>{{ a.village or '—' }}</td>
+                <td class="num">{{ a.quantity }}</td>
+                <td class="num">{{ a.lead_time_days }}</td>
+              </tr>
+            {% endfor %}
+          </table>
+          <p class="small muted" style="margin-bottom:0">
+            Each household is paid its own share on delivery. This allocation is a
+            proposal — artisans accept or decline individually before anything is made.
+          </p>
+        </div>
+
+      {% else %}
+        <div class="panel">
+          <div class="panel-title">What this cluster can actually do</div>
+          <div class="note warn">
+            <strong>Not {{ quote.quantity }} units{% if quote.deadline %} by {{ quote.deadline.strftime('%d %B %Y') }}{% endif %}.</strong>
+            {% if quote.max_by_deadline %}
+              <br>They can commit <strong>{{ quote.max_by_deadline }} units</strong>
+              {%- if quote.deadline %} by that date{% endif %}.
+            {% endif %}
+            {% if quote.days_needed %}
+              <br>All {{ quote.quantity }} would need about
+              <strong>{{ quote.days_needed }} days</strong>.
+            {% endif %}
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+            {% if quote.max_by_deadline %}
+              <a class="btn ghost small"
+                 href="/b2b/{{ card.listing_id }}?quantity={{ quote.max_by_deadline }}{% if requested_deadline %}&deadline={{ requested_deadline }}{% endif %}">
+                Quote {{ quote.max_by_deadline }} instead
+              </a>
+            {% endif %}
+            {% if quote.days_needed %}
+              <a class="btn ghost small" href="/b2b/{{ card.listing_id }}?quantity={{ quote.quantity }}">
+                Quote {{ quote.quantity }} with no deadline
+              </a>
+            {% endif %}
+          </div>
+          <p class="small muted" style="margin-bottom:0">
+            We would rather lose the order than promise a date a village cannot hit.
+          </p>
+        </div>
+      {% endif %}
+
+      {% for warning in quote.warnings %}
+        <div class="note small">{{ warning }}</div>
+      {% endfor %}
+
+      {% if quote.can_order %}
+        <form class="panel" method="post" action="/b2b/{{ card.listing_id }}/order">
+          <div class="panel-title">Confirm the order</div>
+          <input type="hidden" name="quantity" value="{{ quote.quantity }}">
+          <input type="hidden" name="deadline" value="{{ requested_deadline }}">
+          <div class="field">
+            <label for="organisation">Organisation</label>
+            <input type="text" id="organisation" name="organisation" required>
+          </div>
+          <div class="field-row field">
+            <div>
+              <label for="name">Contact name</label>
+              <input type="text" id="name" name="name" required>
+            </div>
+            <div>
+              <label for="phone">Phone</label>
+              <input type="tel" id="phone" name="phone" required>
+            </div>
+          </div>
+          <div class="field">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email">
+          </div>
+          <div class="field">
+            <label for="address">Delivery address</label>
+            <textarea id="address" name="address"></textarea>
+          </div>
+          <div class="field-row field">
+            <div>
+              <label for="city">City</label>
+              <input type="text" id="city" name="city">
+            </div>
+            <div>
+              <label for="state">State</label>
+              <input type="text" id="state" name="state">
+            </div>
+          </div>
+          <div class="field">
+            <label for="notes">Anything the artisans should know</label>
+            <textarea id="notes" name="notes" placeholder="Packaging, branding, colour preference…"></textarea>
+          </div>
+          <button class="btn accent wide" type="submit" style="margin-top:16px">
+            Place order · {{ quote.subtotal }}
+          </button>
+        </form>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

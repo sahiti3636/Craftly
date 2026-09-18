@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Not found — Craftly{% endblock %}
+
+{% block main %}
+<div class="wrap narrow">
+  <div class="empty-state">
+    <h1>No such {{ what }}</h1>
+    <p>
+      It may have sold, or been taken down while the artisan confirms a detail.
+    </p>
+    <a class="btn ghost" href="/">Browse the shop</a>
+  </div>
+</div>
+{% endblock %}

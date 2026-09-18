@@ -1,0 +1,98 @@
+[
+  {
+    "listing_id": "lst_9f8a2e1c4b3d",
+    "in_stock": 180,
+    "made_to_order": true,
+    "lead_time_days": 12,
+    "monthly_capacity": 900,
+    "cluster_capacity": 2600
+  },
+  {
+    "listing_id": "lst_3c7d1b9e5a02",
+    "in_stock": 4,
+    "made_to_order": true,
+    "lead_time_days": 21,
+    "monthly_capacity": 12,
+    "cluster_capacity": 34
+  },
+  {
+    "listing_id": "lst_51ea90cb7d24",
+    "in_stock": 9,
+    "made_to_order": true,
+    "lead_time_days": 18,
+    "monthly_capacity": 22,
+    "cluster_capacity": 76
+  },
+  {
+    "listing_id": "lst_77b0c4d8e913",
+    "in_stock": 6,
+    "made_to_order": true,
+    "lead_time_days": 16,
+    "monthly_capacity": 30,
+    "cluster_capacity": 104
+  },
+  {
+    "listing_id": "lst_ba2f6019c7d5",
+    "in_stock": 2,
+    "made_to_order": true,
+    "lead_time_days": 30,
+    "monthly_capacity": 5,
+    "cluster_capacity": 14
+  },
+  {
+    "listing_id": "lst_e903a51f6b48",
+    "in_stock": 7,
+    "made_to_order": true,
+    "lead_time_days": 20,
+    "monthly_capacity": 18,
+    "cluster_capacity": 18
+  },
+  {
+    "listing_id": "lst_16d8f720a49c",
+    "in_stock": 11,
+    "made_to_order": true,
+    "lead_time_days": 15,
+    "monthly_capacity": 26,
+    "cluster_capacity": 26
+  },
+  {
+    "listing_id": "lst_c40b92e7da1a",
+    "in_stock": 240,
+    "made_to_order": true,
+    "lead_time_days": 10,
+    "monthly_capacity": 700,
+    "cluster_capacity": 700
+  },
+  {
+    "listing_id": "lst_2a6e4c81b77f",
+    "in_stock": 5,
+    "made_to_order": true,
+    "lead_time_days": 14,
+    "monthly_capacity": 20,
+    "cluster_capacity": 20
+  },
+  {
+    "listing_id": "lst_8f30d5b1ae62",
+    "in_stock": 3,
+    "made_to_order": true,
+    "lead_time_days": 25,
+    "monthly_capacity": 8,
+    "cluster_capacity": 8
+  },
+  {
+    "listing_id": "lst_d719c0fa3e85",
+    "in_stock": 0,
+    "made_to_order": true,
+    "lead_time_days": 9,
+    "monthly_capacity": 60,
+    "cluster_capacity": 60
+  },
+  {
+    "listing_id": "lst_5b8e17cd240a",
+    "in_stock": 95,
+    "made_to_order": true,
+    "lead_time_days": 8,
+    "monthly_capacity": 400,
+    "cluster_capacity": 2600
+  }
+]

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Bulk and institutional orders — Craftly{% endblock %}
+
+{% block main %}
+<div class="wrap">
+  <div class="panel" style="background:var(--indigo);color:#f2ece1;border-color:var(--indigo)">
+    <h1 style="color:#fff;margin-bottom:8px">Bulk orders, split across a cluster</h1>
+    <p style="margin:0;max-width:64ch">
+      Corporate gifting, hotel and museum shops, government emporia. Pick a piece,
+      say how many and by when, and you get a real answer: a unit price, a date,
+      and the names of the households who will make it. If the cluster cannot meet
+      the order, the quote says so with a number rather than accepting and failing later.
+    </p>
+  </div>
+
+  <form class="panel" method="get" action="/b2b" style="margin-top:18px">
+    <div class="field-row">
+      <div>
+        <label for="q">What are you sourcing?</label>
+        <input type="text" id="q" name="q" value="{{ query.q }}" placeholder="terracotta, block print, brass…">
+      </div>
+      <div style="align-self:end">
+        <button class="btn" type="submit">Search the catalogue</button>
+      </div>
+    </div>
+  </form>
+
+  <p class="muted small">{{ result.total }} pieces available for bulk order.</p>
+
+  <div class="grid">
+    {% for card in result.cards %}
+      {% set url = '/b2b/' ~ card.listing_id %}
+      {% include "partials/card.html" %}
+    {% endfor %}
+  </div>
+
+  {% if result.pages > 1 %}
+    <div class="pager">
+      {% if result.has_prev %}<a class="btn ghost small" href="{{ query_string(request, page=result.page - 1) }}">← Previous</a>{% endif %}
+      <span class="muted small" style="align-self:center">Page {{ result.page }} of {{ result.pages }}</span>
+      {% if result.has_next %}<a class="btn ghost small" href="{{ query_string(request, page=result.page + 1) }}">Next →</a>{% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

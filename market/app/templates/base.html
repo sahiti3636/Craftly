@@ -1,0 +1,73 @@
+{#
+  The chrome every buyer-facing page except the passport wears.
+
+  The passport page (`/p/{code}`) deliberately does NOT extend this: it is
+  opened by someone holding an object at a mela, and a navigation bar and
+  a basket icon are noise in front of the one question they are asking.
+#}<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Craftly{% endblock %}</title>
+<meta name="description" content="{% block description %}Handmade by named artisans, priced above a minimum-wage floor, traceable to the village it came from.{% endblock %}">
+<link rel="stylesheet" href="/static/craftly.css">
+</head>
+<body>
+
+{% if using_stubs %}
+<div class="stub-banner">
+  <div class="wrap">
+    Running on seed data — <code>CRAFTLY_ADAPTERS=stub</code>. Prices come from the
+    placeholder engine in <code>app/adapters/stub_price.py</code>, not from B1.
+  </div>
+</div>
+{% endif %}
+
+<header class="site-header no-print">
+  <div class="wrap">
+    <a class="brand" href="/">craft<span>ly</span>
+      <small>{{ 'handmade · traceable · fairly priced' if lang == 'en' else 'हस्तनिर्मित · प्रमाणित · न्यायसंगत' }}</small>
+    </a>
+
+    <form class="searchbar" action="/" method="get" role="search">
+      <input type="text" name="q" value="{{ request.query_params.get('q', '') }}"
+             placeholder="{{ 'Search a craft, a material, a village…' if lang == 'en' else 'शिल्प, सामग्री या गाँव खोजें…' }}"
+             aria-label="Search">
+    </form>
+
+    <nav class="site-nav">
+      <a href="/">{{ 'Shop' if lang == 'en' else 'दुकान' }}</a>
+      <a href="/b2b">{{ 'Bulk orders' if lang == 'en' else 'थोक ऑर्डर' }}</a>
+      <a href="/scan">{{ 'Verify a tag' if lang == 'en' else 'टैग जाँचें' }}</a>
+      <a href="/cart">{{ 'Basket' if lang == 'en' else 'टोकरी' }}{% if cart_count %} ({{ cart_count }}){% endif %}</a>
+      <span class="lang-switch">
+        {% for code in LANGUAGES %}
+          <a href="/lang/{{ code }}" class="{{ 'on' if lang == code else '' }}">{{ code|upper }}</a>
+        {% endfor %}
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main>
+  {% block main %}{% endblock %}
+</main>
+
+<footer class="site-footer no-print">
+  <div class="wrap">
+    <div>
+      <strong>Craftly</strong> — one photo, one voice note, a year-round market.<br>
+      Every price on this site is built up from materials and hours at the state
+      minimum wage. Nothing is listed below that floor.
+    </div>
+    <div>
+      <a href="/b2b">Bulk and institutional orders</a><br>
+      <a href="/scan">Verify a craft passport</a><br>
+      <a href="/api/products">Product API</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,119 @@
+{#
+  The QR landing page.
+
+  Standalone on purpose — no header, no basket, no search. Someone has
+  just scanned a paper tag on an object they are holding at a stall, on a
+  phone, possibly on one bar of signal. The page has one job: answer "who
+  made this, and is that true". The shop link comes last, after the
+  answer, because the page has to earn it.
+#}<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ passport.artisan.name }} made this — Craftly passport</title>
+<meta name="description" content="Craft passport {{ passport.verification_code }} — {{ passport.craft_type }} by {{ passport.artisan.name }}{% if passport.made_at %}, {{ passport.made_at }}{% endif %}.">
+<link rel="stylesheet" href="/static/craftly.css">
+</head>
+<body class="passport-page">
+
+<div class="passport">
+
+  <div class="passport-hero">
+    <span class="verified">✓ Craft passport verified</span>
+    {% if passport.image_url %}
+      <img src="{{ passport.image_url }}" alt="">
+    {% endif %}
+    <h1 style="margin-top:16px">{{ card.title(lang) if card else passport.craft_type }}</h1>
+    <p class="muted" style="margin-top:-4px">
+      {{ passport.craft_type }}{% if passport.material %} · {{ passport.material }}{% endif %}
+    </p>
+  </div>
+
+  <div class="maker">
+    {% if passport.artisan.photo_url %}
+      <img src="{{ passport.artisan.photo_url }}" alt="">
+    {% endif %}
+    <div>
+      <div class="name">{{ passport.artisan.name }}</div>
+      <div class="small muted">
+        {{ passport.made_at or '' }}{% if passport.artisan.state %}, {{ passport.artisan.state }}{% endif %}
+        {%- if passport.artisan.years_experience %} · {{ passport.artisan.years_experience }} years at this craft{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if passport.artisan.story %}
+    <p style="margin-top:18px">{{ passport.artisan.story }}</p>
+  {% endif %}
+
+  {% if passport.making_clip_url %}
+    <video src="{{ passport.making_clip_url }}" controls playsinline muted
+           style="width:100%;border-radius:var(--radius);margin-top:16px;background:#000"></video>
+    <p class="small muted" style="margin-top:6px">Her hands, making this.</p>
+  {% endif %}
+
+  <div class="panel" style="margin-top:22px">
+    <div class="panel-title">How it came to exist</div>
+    <ul class="chain">
+      {% for step in passport.chain %}
+        <li>
+          <span class="dot"></span>
+          <span>
+            <span class="label">{{ step.label }}</span>
+            {% if step.detail %}<br><span class="detail">{{ step.detail }}</span>{% endif %}
+            {% if step.at %}<br><span class="detail">{{ step.at.strftime('%d %B %Y') }}</span>{% endif %}
+          </span>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  {% if card %}
+    <div class="panel">
+      <div class="panel-title">What the maker was paid</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span class="price-big tabular">{{ card.price }}</span>
+        <span class="small muted">retail price</span>
+      </div>
+      <div class="meter" style="margin-top:12px" aria-hidden="true">
+        <div class="artisan" style="width: {{ card.artisan_share_pct }}%"></div>
+        <div class="rest" style="width: {{ 100 - card.artisan_share_pct }}%"></div>
+      </div>
+      <div class="meter-legend">
+        <span><strong>{{ card.take_home }}</strong> to {{ passport.artisan.name.split()[0] }}</span>
+        <span>{{ card.artisan_share_pct }}%</span>
+      </div>
+      <p class="small muted" style="margin-top:12px;margin-bottom:0">
+        {{ card.hours_text }}, priced above the
+        {{ passport.artisan.state or 'state' }} minimum wage for those hours plus materials.
+      </p>
+    </div>
+  {% endif %}
+
+  <div style="text-align:center;margin-top:26px">
+    <span class="code-badge">{{ passport.verification_code }}</span>
+    <p class="small muted" style="margin-top:8px">
+      The code printed on the tag. It resolves to this page and nothing else.
+    </p>
+  </div>
+
+  {% if card %}
+    <div style="margin-top:24px;display:grid;gap:10px">
+      {% if card.sellability.can_buy %}
+        <a class="btn accent wide" href="/product/{{ card.listing_id }}?ref=qr">
+          Order another from {{ passport.artisan.name.split()[0] }}
+        </a>
+      {% endif %}
+      <a class="btn ghost wide" href="/b2b/{{ card.listing_id }}">Order in bulk for a shop or an event</a>
+      <a class="btn ghost wide" href="/artisan/{{ card.artisan_id }}">Everything she has made</a>
+    </div>
+  {% endif %}
+
+  <p class="small muted" style="text-align:center;margin-top:28px">
+    <a href="/">craftly</a> — handmade, traceable, fairly priced.
+  </p>
+</div>
+
+</body>
+</html>

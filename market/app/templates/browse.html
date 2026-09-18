@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Shop handmade' if lang == 'en' else 'हस्तशिल्प खरीदें' }} — Craftly{% endblock %}
+
+{% block main %}
+<div class="wrap columns">
+
+  <aside class="filters no-print">
+    {% if query.is_filtered %}
+      <a class="chip on" href="/">Clear all filters ✕</a>
+    {% endif %}
+
+    {% for name, label in [
+        ('category', 'Category'),
+        ('craft_type', 'Craft'),
+        ('material', 'Material'),
+        ('state', 'State'),
+        ('colour', 'Colour')] %}
+      {% set facets = result.facets.get(name, []) %}
+      {% if facets %}
+        <h3>{{ label }}</h3>
+        <ul>
+          {% for facet in facets[:8] %}
+            <li>
+              <a class="{{ 'on' if facet.selected else '' }}"
+                 href="{{ query_string(request, **{name: (None if facet.selected else facet.value), '_reset_page': True}) }}">
+                <span>{{ facet.value }}</span>
+                <span class="count">{{ facet.count }}</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endfor %}
+
+    <h3>Availability</h3>
+    <ul>
+      <li>
+        <a class="{{ 'on' if query.in_stock_only else '' }}"
+           href="{{ query_string(request, in_stock=(None if query.in_stock_only else '1'), _reset_page=True) }}">
+          <span>Ready to ship</span>
+        </a>
+      </li>
+    </ul>
+  </aside>
+
+  <section>
+    <div class="result-head">
+      <div>
+        <h1>
+          {% if query.q %}
+            “{{ query.q }}”
+          {% else %}
+            {{ 'Made by hand, by someone with a name' if lang == 'en' else 'हाथ से बना, नाम वाले कारीगर द्वारा' }}
+          {% endif %}
+        </h1>
+        <p class="muted small" style="margin:0">
+          {{ result.total }} {{ 'piece' if result.total == 1 else 'pieces' }}
+          {%- if query.is_filtered %} matching{% endif %}.
+          Every price below is built from materials and hours at the state minimum wage.
+        </p>
+      </div>
+
+      <div>
+        <label for="sort" class="small">Sort</label>
+        <select id="sort" onchange="location = this.value">
+          {% for value, label in [
+              ('relevance', 'Most relevant'),
+              ('newest', 'Newest'),
+              ('price_low', 'Price: low to high'),
+              ('price_high', 'Price: high to low'),
+              ('most_work', 'Most hours of work'),
+              ('artisan_share', 'Most to the artisan')] %}
+            <option value="{{ query_string(request, sort=value, _reset_page=True) }}"
+                    {{ 'selected' if query.sort.value == value else '' }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    {% if result.cards %}
+      <div class="grid">
+        {% for card in result.cards %}
+          {% include "partials/card.html" %}
+        {% endfor %}
+      </div>
+
+      {% if result.pages > 1 %}
+        <div class="pager">
+          {% if result.has_prev %}
+            <a class="btn ghost small" href="{{ query_string(request, page=result.page - 1) }}">← Previous</a>
+          {% endif %}
+          <span class="muted small" style="align-self:center">Page {{ result.page }} of {{ result.pages }}</span>
+          {% if result.has_next %}
+            <a class="btn ghost small" href="{{ query_string(request, page=result.page + 1) }}">Next →</a>
+          {% endif %}
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="empty-state">
+        <h2>Nothing matches that yet</h2>
+        <p>Try a craft (“ajrakh”), a material (“terracotta”) or a place (“Kutch”).</p>
+        <a class="btn ghost" href="/">Show everything</a>
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

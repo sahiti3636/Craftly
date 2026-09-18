@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Basket — Craftly{% endblock %}
+
+{% block main %}
+<div class="wrap narrow">
+  <h1>Your basket</h1>
+
+  {% for title, reason in basket.removed %}
+    <div class="note warn">
+      <strong>{{ title }}</strong> was removed. {{ reason }}
+    </div>
+  {% endfor %}
+
+  {% if basket.is_empty %}
+    <div class="empty-state">
+      <p>Nothing in the basket yet.</p>
+      <a class="btn ghost" href="/">Browse the shop</a>
+    </div>
+  {% else %}
+    <div class="panel" style="padding:0">
+      <table class="data">
+        <tr>
+          <th>Piece</th>
+          <th class="num">Unit</th>
+          <th class="num">Qty</th>
+          <th class="num">Subtotal</th>
+        </tr>
+        {% for line in basket.lines %}
+          <tr>
+            <td>
+              <a href="/product/{{ line.card.listing_id }}">{{ line.card.title(lang) }}</a>
+              <div class="small muted">{{ line.card.artisan_name }}{% if line.card.place %} · {{ line.card.place }}{% endif %}</div>
+            </td>
+            <td class="num tabular">{{ line.card.price }}</td>
+            <td class="num">
+              <form method="post" action="/cart/update" style="display:flex;gap:6px;justify-content:flex-end">
+                <input type="hidden" name="listing_id" value="{{ line.card.listing_id }}">
+                <input type="number" name="quantity" value="{{ line.quantity }}" min="0" max="99"
+                       style="width:70px" aria-label="Quantity">
+                <button class="btn ghost small" type="submit">Update</button>
+              </form>
+            </td>
+            <td class="num tabular">{{ line.subtotal }}</td>
+          </tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;font-size:1.15rem;font-weight:700">
+        <span>Total</span><span class="tabular">{{ basket.total }}</span>
+      </div>
+      <div class="note good" style="margin-top:14px">
+        <strong>{{ basket.artisan_total }}</strong> of this reaches
+        {{ basket.artisan_count }} artisan {{ 'household' if basket.artisan_count == 1 else 'households' }}
+        directly. Every piece is priced above its own minimum-wage floor.
+      </div>
+      <a class="btn accent wide" href="/checkout" style="margin-top:16px">Checkout</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

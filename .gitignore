@@ -16,3 +16,11 @@ processed_images/
 .u2net/
 engines/data/
 engines/models/
+
+# market/ (C1) — all generated, all rebuildable.
+# seed/media/ is NOT ignored: it is committed so that a fresh clone has a
+# shop that looks like a shop without anyone remembering a setup step.
+market/reels/
+market/qr/
+market/orders.jsonl
+market/*.log

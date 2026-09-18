@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ artisan.artisan_name }} — Craftly{% endblock %}
+
+{% block main %}
+<div class="wrap">
+  <div class="panel">
+    <h1 style="margin-bottom:4px">{{ artisan.artisan_name }}</h1>
+    <p class="muted" style="margin-top:0">
+      {{ artisan.craft }}{% if artisan.place %} · {{ artisan.place }}{% endif %}
+    </p>
+    <p class="small muted" style="margin-bottom:0">
+      {{ cards|length }} {{ 'piece' if cards|length == 1 else 'pieces' }} listed.
+      Every one priced from her own account of the materials and the hours.
+    </p>
+  </div>
+
+  <div class="grid" style="margin-top:22px">
+    {% for card in cards %}
+      {% include "partials/card.html" %}
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

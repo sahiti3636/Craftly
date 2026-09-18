@@ -1,0 +1,33 @@
+{
+  "_comment": [
+    "Stand-in for B1's comparable-listing scraper. Each entry is the price band",
+    "the same kind of object fetches on open marketplaces today, which is the",
+    "number the wage floor gets compared against.",
+    "",
+    "lst_9f8a2e1c4b3d is deliberately a band that sits UNDER its wage floor.",
+    "A single hand-made diya really does sell for 60-150 rupees online, and three",
+    "hours of work at the West Bengal minimum wage plus 50 rupees of clay cannot",
+    "be covered by that. The buyer surfaces have to have something honest to say",
+    "when that happens, so the seed data makes sure the case is always on screen.",
+    "",
+    "lst_8f30d5b1ae62 is the partial case: the band straddles the floor, so the",
+    "bottom of the market underpays and the top does not.",
+    "",
+    "Replace this file with B1's real scraper output. Nothing but",
+    "app/adapters/stub_price.py reads it."
+  ],
+  "bands": {
+    "lst_9f8a2e1c4b3d": { "low_inr": 60, "high_inr": 150, "sample_size": 42 },
+    "lst_3c7d1b9e5a02": { "low_inr": 1800, "high_inr": 3200, "sample_size": 11 },
+    "lst_51ea90cb7d24": { "low_inr": 2200, "high_inr": 4500, "sample_size": 27 },
+    "lst_77b0c4d8e913": { "low_inr": 1500, "high_inr": 2800, "sample_size": 19 },
+    "lst_ba2f6019c7d5": { "low_inr": 3500, "high_inr": 7000, "sample_size": 8 },
+    "lst_e903a51f6b48": { "low_inr": 1900, "high_inr": 3600, "sample_size": 23 },
+    "lst_16d8f720a49c": { "low_inr": 1800, "high_inr": 3400, "sample_size": 31 },
+    "lst_c40b92e7da1a": { "low_inr": 300, "high_inr": 650, "sample_size": 55 },
+    "lst_2a6e4c81b77f": { "low_inr": 900, "high_inr": 2200, "sample_size": 17 },
+    "lst_8f30d5b1ae62": { "low_inr": 1400, "high_inr": 2600, "sample_size": 14 },
+    "lst_d719c0fa3e85": { "low_inr": 450, "high_inr": 900, "sample_size": 26 },
+    "lst_5b8e17cd240a": { "low_inr": 120, "high_inr": 250, "sample_size": 38 }
+  }
+}

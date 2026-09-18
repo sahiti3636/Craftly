@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}{{ card.title(lang) }} — Craftly{% endblock %}
+{% block description %}{{ (card.description(lang) or card.title(lang))|truncate(150) }}{% endblock %}
+
+{% block main %}
+<div class="wrap">
+
+  {% if came_from_qr %}
+    <div class="note good" style="margin-bottom:18px">
+      You scanned the tag on this piece. This is the same object, from the same
+      maker — <a href="/p/{{ passport.verification_code }}">back to the passport</a>.
+    </div>
+  {% endif %}
+
+  <div class="split">
+
+    <div>
+      <div class="panel" style="padding:0; overflow:hidden">
+        {% if card.image_url %}
+          <img src="{{ card.image_url }}" alt="{{ card.title(lang) }}">
+        {% else %}
+          <div class="empty-state">No photo yet</div>
+        {% endif %}
+      </div>
+
+      <div class="panel" style="margin-top:18px">
+        <div class="panel-title">Fifteen-second reel</div>
+        <p class="small muted" style="margin-top:0">
+          Generated from this photo and the artisan's own words — vertical, silent-readable,
+          ready for WhatsApp status or Instagram.
+        </p>
+        <a class="btn ghost small" href="/reel/{{ card.listing_id }}">Build the reel →</a>
+      </div>
+    </div>
+
+    <div>
+      <h1 style="margin-bottom:6px">{{ card.title(lang) }}</h1>
+      <p class="muted" style="margin-top:0">
+        {{ card.listing.craft_type or card.craft }}{% if card.place %} · {{ card.place }}{% endif %}
+      </p>
+
+      {% if card.description(lang) %}
+        <p>{{ card.description(lang) }}</p>
+      {% endif %}
+
+      <div class="chips" style="margin:14px 0">
+        {% if card.listing.material %}<span class="chip">{{ card.listing.material }}</span>{% endif %}
+        {% for colour in card.listing.colours or [] %}<span class="chip">{{ colour }}</span>{% endfor %}
+        {% if card.listing.dimensions %}<span class="chip">{{ card.listing.dimensions }}</span>{% endif %}
+        <span class="chip">{{ card.hours_text }}</span>
+      </div>
+
+      {# ---- price ---- #}
+      <div class="panel">
+        <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+          <span class="price-big tabular">{{ card.price }}</span>
+          <span class="pill stock">{{ card.stock_text }}</span>
+        </div>
+
+        <div style="margin:16px 0 4px">
+          <div class="meter" aria-hidden="true">
+            <div class="artisan" style="width: {{ card.artisan_share_pct }}%"></div>
+            <div class="rest" style="width: {{ 100 - card.artisan_share_pct }}%"></div>
+          </div>
+          <div class="meter-legend">
+            <span><strong>{{ card.take_home }}</strong> to {{ card.artisan_name.split()[0] }} ({{ card.artisan_share_pct }}%)</span>
+            <span>{{ rupees(card.quote.channel_fee_inr) }} platform &amp; payment</span>
+          </div>
+        </div>
+
+        {% if card.quote.below_floor %}
+          <div class="note warn" style="margin:14px 0">
+            The same piece sells for {{ rupees(card.quote.market_low_inr) }}–{{ rupees(card.quote.market_high_inr) }}
+            elsewhere. That is below what the hours in it are worth at minimum wage,
+            so it is listed here at its floor instead of matching that.
+          </div>
+        {% endif %}
+
+        {% if card.sellability.can_buy %}
+          <form method="post" action="/cart/add" style="margin-top:16px">
+            <input type="hidden" name="listing_id" value="{{ card.listing_id }}">
+            <input type="hidden" name="then" value="/cart">
+            <div style="display:flex;gap:10px">
+              <input type="number" name="quantity" value="1" min="1" max="99" style="width:84px" aria-label="Quantity">
+              <button class="btn accent" style="flex:1" type="submit">Add to basket</button>
+            </div>
+          </form>
+          <p class="small muted" style="margin-bottom:0">
+            Need more than ten? <a href="/b2b/{{ card.listing_id }}">Get a bulk quote</a> —
+            the cluster splits large orders across several households.
+          </p>
+        {% else %}
+          <div class="note bad" style="margin-top:16px">
+            <strong>{{ card.sellability.reason }}.</strong>
+            {% if card.sellability.detail %}<br>{{ card.sellability.detail }}{% endif %}
+          </div>
+        {% endif %}
+      </div>
+
+      {# ---- how the price is built ---- #}
+      <details class="panel" {{ 'open' if card.quote.below_floor or not card.sellability.can_buy else '' }}>
+        <summary style="cursor:pointer;font-weight:600">How this price is built</summary>
+        <ul class="breakdown" style="margin-top:12px">
+          {% for line in card.quote.explanation %}
+            <li>{{ line }}</li>
+          {% endfor %}
+        </ul>
+
+        {% if channel_quotes %}
+          <div class="panel-title" style="margin-top:18px">The same piece, on other channels</div>
+          <table class="data">
+            <tr><th>Channel</th><th class="num">Buyer pays</th><th class="num">Artisan keeps</th></tr>
+            {% for name, quote in channel_quotes.items() %}
+              <tr>
+                <td>{{ name.replace('_', ' ')|title }}</td>
+                <td class="num tabular">{{ rupees(quote.price_inr) }}</td>
+                <td class="num tabular">{{ rupees(quote.artisan_take_home_inr) }}</td>
+              </tr>
+            {% endfor %}
+          </table>
+          <p class="small muted" style="margin-bottom:0">
+            The artisan's take-home is held constant across channels; the price
+            moves to absorb each marketplace's cut. Buying here is cheaper for you
+            and identical for her.
+          </p>
+        {% endif %}
+      </details>
+
+      {# ---- maker ---- #}
+      {% if passport %}
+        <div class="panel">
+          <div class="panel-title">The maker</div>
+          <div class="maker" style="display:flex;gap:14px;align-items:center">
+            {% if passport.artisan.photo_url %}
+              <img src="{{ passport.artisan.photo_url }}" alt=""
+                   style="width:62px;height:62px;border-radius:50%;object-fit:cover">
+            {% endif %}
+            <div>
+              <div style="font-family:var(--serif);font-size:1.15rem">{{ passport.artisan.name }}</div>
+              <div class="small muted">
+                {{ passport.made_at }}{% if passport.artisan.years_experience %} · {{ passport.artisan.years_experience }} years at this craft{% endif %}
+              </div>
+            </div>
+          </div>
+          {% if passport.artisan.story %}
+            <p class="small" style="margin-top:12px">{{ passport.artisan.story }}</p>
+          {% endif %}
+          <a class="btn ghost small" href="/p/{{ passport.verification_code }}">See the craft passport</a>
+          <a class="btn ghost small" href="/artisan/{{ card.artisan_id }}">Everything she has listed</a>
+        </div>
+      {% endif %}
+
+      {% if card.listing.needs_confirmation %}
+        <p class="small muted">
+          Still being confirmed with the artisan:
+          {{ card.listing.needs_confirmation|join(', ')|replace('_', ' ') }}.
+          We show this rather than filling the gap with a guess.
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if more_from_artisan %}
+    <h2 style="margin-top:44px">More from {{ card.artisan_name }}</h2>
+    <div class="grid">
+      {% for card in more_from_artisan %}
+        {% include "partials/card.html" %}
+      {% endfor %}
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

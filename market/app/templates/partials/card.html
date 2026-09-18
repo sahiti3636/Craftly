@@ -1,0 +1,38 @@
+{#
+  One product tile.
+
+  The artisan's share is on the tile, not buried on the detail page. It is
+  the number that distinguishes this marketplace from every other one, and
+  a claim you only make once someone has clicked is a claim you are hiding.
+#}
+<a class="card" href="{{ url or ('/product/' ~ card.listing_id) }}">
+  <div class="thumb{{ ' empty' if not card.image_url else '' }}">
+    {% if card.image_url %}
+      <img src="{{ card.image_url }}" alt="{{ card.title(lang) }}" loading="lazy">
+    {% else %}
+      <span>No photo yet</span>
+    {% endif %}
+  </div>
+  <div class="body">
+    <div class="title">{{ card.title(lang) }}</div>
+    <div class="place">
+      {{ card.artisan_name }}{% if card.place %} · {{ card.place }}{% endif %}
+    </div>
+
+    {% if not card.sellability.can_buy %}
+      <span class="pill blocked">{{ card.sellability.reason }}</span>
+    {% elif card.inventory.sellable_now == 0 %}
+      <span class="pill made">{{ card.stock_text }}</span>
+    {% elif card.inventory.sellable_now <= 20 %}
+      <span class="pill low">{{ card.stock_text }}</span>
+    {% endif %}
+
+    <div class="price-row">
+      <span class="price tabular">{{ card.price }}</span>
+      <span class="share">{{ card.artisan_share_pct }}% to the maker</span>
+    </div>
+    {% if card.quote.below_floor %}
+      <span class="pill floor">Priced above the market, at its wage floor</span>
+    {% endif %}
+  </div>
+</a>

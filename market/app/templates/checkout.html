@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Checkout — Craftly{% endblock %}
+
+{% block main %}
+<div class="wrap split">
+  <div>
+    <h1>Where should it go?</h1>
+    <form method="post" action="/checkout" class="panel">
+      <div class="field">
+        <label for="name">Full name</label>
+        <input type="text" id="name" name="name" required autocomplete="name">
+      </div>
+      <div class="field-row field">
+        <div>
+          <label for="phone">Phone</label>
+          <input type="tel" id="phone" name="phone" required autocomplete="tel"
+                 placeholder="For the courier and delivery updates">
+        </div>
+        <div>
+          <label for="email">Email (optional)</label>
+          <input type="email" id="email" name="email" autocomplete="email">
+        </div>
+      </div>
+      <div class="field">
+        <label for="address">Address</label>
+        <textarea id="address" name="address" autocomplete="street-address"></textarea>
+      </div>
+      <div class="field-row field">
+        <div>
+          <label for="city">City</label>
+          <input type="text" id="city" name="city" autocomplete="address-level2">
+        </div>
+        <div>
+          <label for="state">State</label>
+          <input type="text" id="state" name="state" autocomplete="address-level1">
+        </div>
+      </div>
+      <div class="field">
+        <label for="pincode">PIN code</label>
+        <input type="text" id="pincode" name="pincode" inputmode="numeric" autocomplete="postal-code" style="max-width:180px">
+      </div>
+
+      <button class="btn accent wide" type="submit" style="margin-top:18px">
+        Place order · {{ basket.total }}
+      </button>
+      <p class="small muted" style="margin-bottom:0">
+        Payment is handled after the artisan accepts the order — she is called in her
+        own language first. Nothing is charged until someone has said yes to making it.
+      </p>
+    </form>
+  </div>
+
+  <div>
+    <div class="panel">
+      <div class="panel-title">Order summary</div>
+      <table class="data">
+        {% for line in basket.lines %}
+          <tr>
+            <td>
+              {{ line.card.title(lang) }} × {{ line.quantity }}
+              <div class="small muted">{{ line.card.artisan_name }}</div>
+            </td>
+            <td class="num tabular">{{ line.subtotal }}</td>
+          </tr>
+        {% endfor %}
+        <tr>
+          <td><strong>Total</strong></td>
+          <td class="num tabular"><strong>{{ basket.total }}</strong></td>
+        </tr>
+      </table>
+      <div class="note good" style="margin-top:12px">
+        {{ basket.artisan_total }} goes to the makers.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

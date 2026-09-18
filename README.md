@@ -55,7 +55,7 @@ Artisan view: capture (photo + voice: what it is, material cost, hours)
 |---|---|---|
 | `capture/` | Pair A | Working |
 | `platform/` | Pair B | TODO |
-| `market/` | Pair C | TODO |
+| `market/` | Pair C | C1 working, C2 TODO |
 | `app/` (mobile) | Pair A | TODO |
 | `schema/` | Shared contract | Working |
 
@@ -155,18 +155,35 @@ against synthetic fixtures, not real phone media.
 
 ## Pair C — Buyer side and the outside world
 
-### C1 — Buyer surfaces  🔲 TODO
+### C1 — Buyer surfaces  ✅ built
 
-> **Owner:** _TBD_
->
-> Buyer view, B2B portal, QR landing page, reel generation.
->
-> - [ ] Browse / search / buy one piece
-> - [ ] B2B bulk order with quantity and deadline
-> - [ ] QR scan → passport page + reorder link
-> - [ ] 15s vertical reel from photo + making-clip + captions
->
-> _Setup and run instructions go here._
+FastAPI + Jinja service in [`market/`](market/). Storefront, B2B portal
+with cluster splitting, craft-passport QR landing page, reel generator,
+and a JSON API over all of it for A1's app and C2's adapters.
+
+Full documentation: [`market/README.md`](market/README.md)
+
+```bash
+cd market && uv sync && uv run uvicorn app.main:app --reload --port 8100
+```
+
+- [x] Browse / search / buy one piece — facets, price range, sort, basket, checkout
+- [x] B2B bulk order with quantity and deadline — and a refusal with a number when the cluster cannot meet it
+- [x] QR scan → passport page + reorder link, plus printable hang-tags
+- [x] 15s vertical reel from photo + making-clip + captions, with a storyboard fallback when ffmpeg is absent
+
+**Runs with no other slice up.** B1 and B2 sit behind `Protocol` seams in
+[`market/app/ports.py`](market/app/ports.py) with stub implementations;
+`CRAFTLY_ADAPTERS=http` swaps in the real services without touching a
+route or a template.
+[`market/app/adapters/http_platform.py`](market/app/adapters/http_platform.py)
+is C1's written-down request to B1 and B2 for the endpoints it needs.
+
+**Known gaps:** no payment and no auth (both B2's). `http_platform.py` has
+never talked to a real server. Prices are fetched one listing at a time —
+B1 should expose a batch endpoint. The state minimum-wage table in the
+placeholder price engine is not gazette data. Seed product photos are
+generated placeholders.
 
 ### C2 — Integrations  🔲 TODO
 
@@ -179,6 +196,14 @@ against synthetic fixtures, not real phone media.
 > - [ ] AI call: order confirmed, pickup scheduled, payment credited
 > - [ ] Weekly demand alert (real data only, never generic marketing)
 >
+> Two things C1 already provides to build against:
+> `GET /api/products/{id}?channel=amazon` returns the listing priced for
+> that channel with the artisan's take-home held constant — that is the
+> payload a marketplace adapter pushes. And every placed order is appended
+> to `market/orders.jsonl` in the `Order` shape from
+> [`market/app/contracts.py`](market/app/contracts.py), which is what the
+> courier booking and the voice call read.
+>
 > _Setup and run instructions go here._
 
 ---
@@ -187,6 +212,18 @@ against synthetic fixtures, not real phone media.
 
 > 🔲 **TODO** — fill in once B2 has a deploy and the three slices are
 > wired together.
+
+Until then the two built slices run side by side, each on its own port and
+neither depending on the other:
+
+```bash
+cd capture && uv run uvicorn app.main:app --reload --port 8000   # A2
+cd market  && uv run uvicorn app.main:app --reload --port 8100   # C1
+```
+
+A2 turns a photo and a voice note into a `Listing`. C1 renders a
+`Listing` as a shop. The join between them is B2's database, so for now C1
+reads its own seed catalogue instead.
 
 ## Team
 

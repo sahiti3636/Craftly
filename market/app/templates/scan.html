@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Verify a craft passport — Craftly{% endblock %}
+
+{% block main %}
+<div class="wrap">
+  <h1>Verify a tag</h1>
+  <p class="muted" style="max-width:66ch">
+    Every piece sold through Craftly carries a code. Type it in, or scan the QR on
+    the tag, and you get the maker, the village, the hours and what she was paid.
+  </p>
+
+  <form class="panel" style="max-width:420px"
+        onsubmit="event.preventDefault(); location = '/p/' + encodeURIComponent(this.code.value.trim());">
+    <label for="code">Passport code</label>
+    <input type="text" id="code" name="code" placeholder="CR-XXXX-XXXX" autofocus>
+    <button class="btn wide" type="submit" style="margin-top:12px">Check it</button>
+  </form>
+
+  <h2 style="margin-top:38px">Codes in this catalogue</h2>
+  <p class="muted small">
+    A demo affordance: scan any of these off the screen with a phone to walk the
+    mela journey. In the real system these are printed on hang-tags, not listed on a page.
+  </p>
+
+  <div class="grid">
+    {% for card, code in rows %}
+      <div class="card" style="padding:14px;text-align:center">
+        <img src="/qr/{{ code }}.png" alt="QR for {{ code }}" style="width:150px;margin:0 auto">
+        <div class="tag-code" style="margin-top:8px">{{ code }}</div>
+        <div class="small muted">{{ card.title(lang)|truncate(42) }}</div>
+        <div class="small muted">{{ card.artisan_name }}</div>
+        <div style="margin-top:10px;display:flex;gap:8px;justify-content:center">
+          <a class="btn ghost small" href="/p/{{ code }}">Open</a>
+          <a class="btn ghost small" href="/tag/{{ card.listing_id }}">Tag</a>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

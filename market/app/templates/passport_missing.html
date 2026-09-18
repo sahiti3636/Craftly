@@ -1,0 +1,44 @@
+{#
+  A scanned code that resolves to nothing.
+
+  This is a page a real buyer will hit — a smudged tag, a mistyped code, a
+  counterfeit. It says what happened plainly rather than showing a generic
+  404, and it gives the two ways out: retype the code, or ask the seller.
+  Saying "we cannot verify this" is the honest answer and it is the whole
+  value of the passport being checkable at all.
+#}<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code not recognised — Craftly</title>
+<link rel="stylesheet" href="/static/craftly.css">
+</head>
+<body class="passport-page">
+<div class="passport">
+  <div class="passport-hero">
+    <h1>We cannot verify this code</h1>
+    <p class="muted"><span class="code-badge">{{ code }}</span></p>
+  </div>
+
+  <div class="note warn">
+    No craft passport in Craftly carries that code. Either it was mistyped, the tag
+    is damaged, or the piece did not come through Craftly.
+  </div>
+
+  <form class="panel" method="get" action="/p/lookup" onsubmit="event.preventDefault(); location = '/p/' + encodeURIComponent(this.code.value.trim());">
+    <label for="code">Type the code from the tag</label>
+    <input type="text" id="code" name="code" placeholder="CR-XXXX-XXXX" value="{{ code }}">
+    <button class="btn wide" type="submit" style="margin-top:12px">Check it</button>
+    <p class="small muted" style="margin-bottom:0">
+      The dashes are optional. The code only uses digits and letters that cannot be
+      confused — no zero, no letter O, no one, no letter I.
+    </p>
+  </form>
+
+  <p class="small muted" style="text-align:center;margin-top:24px">
+    <a href="/">Browse verified handmade pieces</a>
+  </p>
+</div>
+</body>
+</html>

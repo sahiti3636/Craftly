@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Reel — {{ card.title(lang) }} — Craftly{% endblock %}
+
+{% block main %}
+<div class="wrap">
+  <a class="small muted" href="/product/{{ card.listing_id }}">← Back to the piece</a>
+  <h1 style="margin-top:10px">Fifteen seconds, built from one photo</h1>
+  <p class="muted" style="max-width:66ch">
+    Vertical, silent-readable, every number taken from the listing. Nothing here was
+    written by hand — the captions come from what the artisan said into her phone and
+    what the price engine worked out from it.
+  </p>
+
+  {% for warning in reel.warnings %}
+    <div class="note warn small">{{ warning }}</div>
+  {% endfor %}
+
+  <div class="reel-stage" style="margin-top:20px">
+    <div>
+      {% if reel.is_video %}
+        <video src="{{ reel.video_url }}" controls playsinline loop muted></video>
+        <p class="small muted" style="text-align:center;margin-top:8px">
+          <a href="{{ reel.video_url }}" download>Download the mp4</a>
+        </p>
+      {% else %}
+        <div class="storyboard">
+          {% for url in reel.frame_urls %}
+            <figure>
+              <img src="{{ url }}" alt="Reel frame {{ loop.index }}" style="width:200px">
+              <figcaption>{{ '%.1f'|format(reel.captions[loop.index0].duration) }}s</figcaption>
+            </figure>
+          {% endfor %}
+        </div>
+        <p class="small muted">
+          Storyboard, not video — the frames are real, the stitching needs ffmpeg.
+        </p>
+      {% endif %}
+    </div>
+
+    <div style="flex:1;min-width:280px">
+      <div class="panel">
+        <div class="panel-title">The script</div>
+        <table class="data">
+          <tr><th>At</th><th>Says</th></tr>
+          {% for caption in reel.captions %}
+            <tr>
+              <td class="tabular">{{ '%.1f'|format(caption.start) }}s</td>
+              <td>
+                {% if caption.kicker %}<div class="small" style="color:var(--accent)">{{ caption.kicker }}</div>{% endif %}
+                <strong>{{ caption.headline }}</strong>
+                {% if caption.sub %}<div class="small muted">{{ caption.sub }}</div>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </table>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Where this goes</div>
+        <p class="small" style="margin-top:0">
+          WhatsApp status, Instagram reels, and the screen at a mela stall. The last
+          beat carries the passport code, so a reel that gets forwarded is still
+          traceable back to {{ card.artisan_name.split()[0] }}.
+        </p>
+        <a class="btn ghost small" href="/reel/{{ card.listing_id }}?rebuild=1">Rebuild</a>
+        {% if passport %}
+          <a class="btn ghost small" href="/tag/{{ card.listing_id }}">Printable tag</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

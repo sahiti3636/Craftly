@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Catalogue unavailable — Craftly{% endblock %}
+
+{% block main %}
+<div class="wrap narrow">
+  <div class="empty-state">
+    <h1>The catalogue is unavailable</h1>
+    <p>
+      The buyer surfaces are up, but the platform they read from is not answering,
+      so there is nothing honest to show you. An empty shop and a shop that is down
+      look the same, and they are not the same.
+    </p>
+    <p class="small muted">{{ detail }}</p>
+    <a class="btn ghost" href="/">Try again</a>
+  </div>
+</div>
+{% endblock %}

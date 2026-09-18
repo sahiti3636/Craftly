@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Printable tag — {{ card.title(lang) if card else passport.verification_code }}{% endblock %}
+
+{% block main %}
+<div class="wrap narrow">
+  <h1 class="no-print">Hang-tag</h1>
+  <p class="muted no-print">
+    Print this and tie it to the piece. A buyer at a mela scans the QR and lands on
+    the craft passport — which is also the reorder link, so a shopkeeper who sold
+    twenty can order twenty more from the same woman without knowing her number.
+  </p>
+  <p class="no-print"><button class="btn small" onclick="window.print()">Print</button></p>
+
+  <div class="tag-sheet">
+    {% for _ in range(4) %}
+      <div class="tag">
+        <div style="font-family:var(--serif);font-size:1.1rem">craftly</div>
+        <div class="small muted" style="letter-spacing:.08em;text-transform:uppercase;font-size:.62rem">
+          Craft passport
+        </div>
+        <img src="/qr/{{ passport.verification_code }}.png" alt="QR code">
+        <div class="tag-code">{{ passport.verification_code }}</div>
+        <div class="tag-name" style="margin-top:6px">{{ passport.artisan.name }}</div>
+        <div class="small muted">{{ passport.made_at }}</div>
+        {% if passport.hours_worked %}
+          <div class="small muted" style="margin-top:4px">
+            {{ passport.hours_worked|round|int }} hours by hand
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
