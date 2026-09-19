@@ -56,7 +56,8 @@ Artisan view: capture (photo + voice: what it is, material cost, hours)
 | `capture/` | Pair A | Working |
 | `engines/` | Pair B (B1) | Working |
 | `platform/` | Pair B (B2) | Working |
-| `market/` | Pair C | C1 working, C2 TODO |
+| `market/` | Pair C (C1) | Working |
+| `integrations/` | Pair C (C2) | Working (simulated integrations) |
 | `app/` (mobile) | Pair A | TODO — native app deferred to the final project; see A1 below for the working demo |
 | `schema/` | Shared contract | Working |
 
@@ -677,32 +678,47 @@ market/
   bulk generation; `routes/passport.py:reel_page` is the handler that
   becomes a job submission.
 
-### C2 — Integrations  🔲 TODO
+### C2 — Integrations  ✅ built (simulated for the prototype)
 
-> **Owner:** _TBD_
->
-> Marketplace adapters, courier booking, AI voice call and WhatsApp.
->
-> - [ ] Channel adapter interface + one real live integration
-> - [ ] Courier API → waybill + pickup slot
-> - [ ] AI call: order confirmed, pickup scheduled, payment credited
-> - [ ] Weekly demand alert (real data only, never generic marketing)
->
-> Two things C1 already provides to build against:
-> `GET /api/products/{id}?channel=amazon` returns the listing priced for
-> that channel with the artisan's take-home held constant — that is the
-> payload a marketplace adapter pushes. And every placed order is appended
-> to `market/orders.jsonl` in the `Order` shape from
-> [`market/app/contracts.py`](market/app/contracts.py), which is what the
-> courier booking and the voice call read.
->
-> _Setup and run instructions go here._
+> Marketplace adapters, courier booking, AI voice call and demand alert,
+> in [`integrations/`](integrations/). **Every external integration is
+> simulated** — no marketplace, courier or telephony account exists, and
+> nothing leaves the machine. Each simulation sits behind the interface a
+> real integration would implement, so going live is a change inside one
+> module. Full notes: [`integrations/README.md`](integrations/README.md).
+
+- [x] Channel adapter interface + Amazon / Flipkart / eBay adapters (simulated `submit`)
+- [x] Courier booking → master waybill, one waybill per artisan pickup, pickup slot
+- [x] AI call script in Hindi and English: order confirmed, pickup scheduled, payment credited
+- [x] Weekly demand alert, computed from the real order log (a real computation, not a simulation)
+- [ ] One *live* marketplace integration — deferred to the final project
+- [ ] Real telephony / TTS for the call — deferred to the final project
+
+How it plugs into C1, with no change to C1's code:
+
+| C1 gives | C2 does with it |
+|---|---|
+| `GET /api/products/{id}?channel=amazon` | Builds the marketplace payload from it. Price and take-home are C1's, never recomputed |
+| `market/orders.jsonl` (`Order`) | Books the courier, works out each artisan's payout, scripts the calls, feeds the demand alert |
+| `market/seed/` (artisans, inventory) | Pickup origins, artisan languages, stock for restock advice |
+
+```bash
+cd integrations
+uv run python demo.py                                   # whole flow in the terminal
+uv run uvicorn c2.app:app --reload --port 8300          # console at http://localhost:8300
+uv run pytest                                           # 50+ tests, no other service needed
+```
+
+Run `market/` on 8100 first for prices over HTTP; if it is not running, C2
+loads C1's code in-process instead. With no orders in `market/orders.jsonl`,
+C2 fulfils four sample orders built from C1's catalogue and labels them as
+samples.
 
 ---
 
 ## Running the whole thing
 
-Four services, four ports, nothing shared but HTTP.
+Five services, five ports, nothing shared but HTTP (C2 also reads C1's order log).
 
 ```bash
 cd platform && uv run python -m app.seed                          # once
@@ -710,6 +726,7 @@ cd platform && uv run uvicorn app.main:app --reload --port 8200   # B2
 cd engines  && source venv/bin/activate && python scripts/service.py serve --port 8010   # B1
 cd capture  && uv run uvicorn app.main:app --reload --port 8000   # A2
 cd market   && uv run uvicorn app.main:app --reload --port 8100   # C1
+cd integrations && uv run uvicorn c2.app:app --reload --port 8300   # C2 (simulated integrations)
 ```
 
 By default C1 still runs off its own seed catalogue and stub price engine,

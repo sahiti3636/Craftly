@@ -32,3 +32,6 @@ platform/craftly.db-shm
 platform/media/
 platform/qr/
 platform/*.log
+
+# integrations/ (C2) — simulated shipment and call logs, rebuildable by running the demo.
+integrations/logs/
