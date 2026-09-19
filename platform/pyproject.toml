@@ -1,0 +1,32 @@
+[project]
+name = "craftly-platform"
+version = "0.1.0"
+description = "Craftly platform — database, auth, APIs, media, passports + QR, payment split (slice B2)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "sqlalchemy>=2.0",
+    "python-multipart>=0.0.12",
+    "qrcode[pil]>=7.4",
+    "pillow>=10.4",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.27",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# So that `uv run pytest` works as well as `uv run python -m pytest`. The
+# package is not installed (uv package = false), so without this the test
+# modules cannot import `app` unless pytest happens to be invoked in a way
+# that puts the project directory on sys.path.
+pythonpath = ["."]
+
+[tool.uv]
+package = false

@@ -24,3 +24,11 @@ market/reels/
 market/qr/
 market/orders.jsonl
 market/*.log
+
+# platform/ (B2) — all generated, all rebuildable from `python -m app.seed`.
+platform/craftly.db
+platform/craftly.db-wal
+platform/craftly.db-shm
+platform/media/
+platform/qr/
+platform/*.log

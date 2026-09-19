@@ -54,7 +54,7 @@ Artisan view: capture (photo + voice: what it is, material cost, hours)
 | Directory | Owner | Status |
 |---|---|---|
 | `capture/` | Pair A | Working |
-| `platform/` | Pair B | TODO |
+| `platform/` | Pair B (B2) | Working |
 | `market/` | Pair C | C1 working, C2 TODO |
 | `app/` (mobile) | Pair A | TODO — native app deferred to the final project; see A1 below for the working demo |
 | `schema/` | Shared contract | Working |
@@ -144,21 +144,151 @@ against synthetic fixtures, not real phone media.
 >
 > _Setup and run instructions go here._
 
-### B2 — Platform  🔲 TODO
+### B2 — Platform  ✅ built
 
-> **Owner:** _TBD_
->
-> Database, auth, APIs, media storage, payment split, craft passport
-> assembly + QR generation, deployment.
->
-> - [ ] Persistent store (replaces `capture/app/store.py`)
-> - [ ] Artisan + buyer auth
-> - [ ] Passport object: artisan, village, craft, material, hours,
->       making-clip, QR
-> - [ ] Payment split on delivery
-> - [ ] Deploy
->
-> _Setup and run instructions go here._
+FastAPI + SQLAlchemy service in [`platform/`](platform/): the database
+every other slice has been faking, artisan and buyer auth, media storage,
+craft-passport assembly with QR minting, the payment split on delivery,
+and a deployment.
+
+Full documentation: [`platform/README.md`](platform/README.md)
+
+```bash
+cd platform
+uv sync
+uv run python -m app.seed                                # fill the database
+uv run uvicorn app.main:app --reload --port 8200
+uv run pytest                                            # 134 tests, no network
+```
+
+That is the whole setup — SQLite by default, so there is no database
+server to install and no credentials to hand round.
+`CRAFTLY_DATABASE_URL=postgresql+psycopg://...` switches it and nothing in
+`app/` changes.
+
+- [x] Persistent store — 15 tables, replaces `capture/app/store.py` and C1's seed JSON
+- [x] Artisan auth (phone + one-time code) and buyer auth (email + password)
+- [x] Every endpoint C1's `http_platform.py` was written against, in the shapes it already parses
+- [x] Content-addressed media storage
+- [x] Passport object + QR, with the codes C1 has been printing all along
+- [x] Payment split on delivery, idempotent, with blocked payouts recorded rather than dropped
+- [x] Dockerfile + compose, non-root, healthcheck
+
+| URL | What it is |
+|---|---|
+| <http://localhost:8200/health> | Status, plus counts of what is actually in the database |
+| <http://localhost:8200/docs> | Every endpoint, generated from the code |
+| <http://localhost:8200/catalog/entries> | The catalogue C1 renders |
+| <http://localhost:8200/passports/by-code/CR-R8CR-9SG8> | A passport, resolved from a tag |
+| <http://localhost:8200/qr/CR-R8CR-9SG8.png> | The QR for that tag |
+
+#### The integration is real, not proposed
+
+C1's [`market/app/adapters/http_platform.py`](market/app/adapters/http_platform.py)
+was written before this service existed — half implementation, half
+request, stating in code exactly what C1 needs and in what shape. **Every
+endpoint in that file is implemented, at those paths, in those shapes.**
+
+So C1 runs off the real database today:
+
+```bash
+cd platform && uv run python -m app.seed && uv run uvicorn app.main:app --port 8200
+cd market   && CRAFTLY_ADAPTERS=http CRAFTLY_PLATFORM_URL=http://localhost:8200 \
+               uv run uvicorn app.main:app --port 8100
+```
+
+Storefront, product pages, B2B portal, `/scan` and every QR passport page
+render off the database instead of off seed JSON — same twelve products,
+same photos, and **the same verification codes**. `CR-R8CR-9SG8` is still
+`CR-R8CR-9SG8`.
+
+That is a constraint, not a coincidence: every hang-tag printed off C1's
+stub is already in the world, so `platform/app/ids.py` derives codes with
+the identical algorithm, and a test loads that algorithm out of C1's own
+source file and compares the two. `platform/tests/test_seed_parity.py`
+holds the rest of the line — every field of every seeded listing, artisan
+and inventory row survives the round trip unchanged.
+
+> **One gap, and it is B1's seam rather than B2's.** With
+> `CRAFTLY_ADAPTERS=http`, C1 also routes *prices* to `CRAFTLY_ENGINES_URL`,
+> where it expects `POST /price` and `POST /split`. B1's service exposes
+> `POST /api/predict` and `POST /api/bulk-order` instead. Until those two
+> are reconciled, a fully-`http` C1 returns 503 on any page needing a price
+> — correctly, because there is no price. The fix is a few lines in
+> `http_platform.py` or a pair of aliases in B1; it does not touch B2.
+
+#### What B2 owns, and what it refuses to own
+
+It stores what the other slices produce and does not second-guess any of
+it. `POST /orders` never calls B1 to re-check a price: the buyer saw a
+number and agreed to it, and a platform that recalculates at write time
+can disagree with its own receipt.
+
+The one place B2 does arithmetic is the payment split, and it is governed
+by five rules written down in
+[`platform/app/payments.py`](platform/app/payments.py):
+
+1. **The artisan's take-home is not a residual.** It is B1's number,
+   quoted on the page, stored on the line, paid out unchanged. The
+   marketplace's cut is what is left *after* it.
+2. **The fee comes out of the margin above the floor, and the margin can
+   be zero.** The fee applies to `price − take_home`, never to `price`.
+   On a craft whose market price sits under its own wage floor — the
+   terracotta diya in the seed data — the fee is zero and the marketplace
+   absorbs the loss, recorded as `platform_absorbed_inr` rather than
+   quietly netted off.
+3. **A payout that cannot be sent is `blocked`, never dropped.** No UPI id
+   on file still writes the row, with the full amount and a reason. The
+   money is owed either way, and a system that skips the row loses the debt.
+4. **Settlement is idempotent.** Courier webhooks retry; nobody gets paid
+   twice and the second attempt does not error.
+5. **An incomplete line blocks the split rather than guessing it.** A null
+   take-home means B1 never resolved a wage floor. Paying a
+   plausible-looking guess is the one outcome worse than paying late.
+
+A three-unit order for an Ajrakh runner at ₹2,400, take-home ₹1,800:
+
+```json
+{ "gross_inr": 7200, "artisan_total_inr": 5400,
+  "platform_fee_inr": 180, "platform_absorbed_inr": 0,
+  "artisan_share_pct": 75.0, "complete": true,
+  "payouts": [{ "artisan_name": "Hansaben Vankar", "amount_inr": 5400,
+                "status": "pending" }] }
+```
+
+₹180 is 10% of the ₹600 margin, not 10% of ₹7,200. The share reaching the
+maker is computed from the payout rows, not asserted on a banner.
+
+#### Two insecure defaults, on purpose and out loud
+
+Both are logged at startup and listed in `GET /health`.
+
+| Setting | Default | Why | Fix |
+|---|---|---|---|
+| `CRAFTLY_REQUIRE_ORDER_AUTH` | `false` | C1's order adapter sends no `Authorization` header. Requiring one on day one breaks the only integration this endpoint has. | `true`, once C1 sends a token |
+| `CRAFTLY_OTP_ECHO` | `true` | No SMS gateway exists in this repo — C2 owns delivery — and a login you cannot complete is not a login. | `false`, once C2's channel is wired in |
+
+A default that is wrong for production is fine. One that is wrong for
+production *and silent* is how it ships.
+
+#### Known gaps
+
+- **The container image has never been built.** No Docker on the machine
+  this was written on, so `Dockerfile` and `docker-compose.yml` are
+  reviewed but unverified; everything else here was run.
+- **No real payment rail.** Payout rows are computed and recorded;
+  `POST /payouts/{id}/paid` is a manual acknowledgement. The shape a UPI
+  or bank-file integration plugs into is already there.
+- **Deleting a media row does not delete the file.** Content addressing
+  means two listings can share bytes; garbage collection is written down
+  rather than half-implemented.
+- **No rate limit on OTP requests.** Codes are attempt-capped and expire,
+  but nothing caps requests. That belongs at a reverse proxy.
+- **No pagination on `/catalog/entries`.** Honest at a few thousand items,
+  wrong at a million — and the seam is placed so the query pushes down
+  here without C1's screens noticing.
+- **`create_all`, not Alembic.** One deployed instance, a re-seedable
+  catalogue. A migration tool earns its place when neither is true.
 
 ---
 
@@ -515,20 +645,50 @@ market/
 
 ## Running the whole thing
 
-> 🔲 **TODO** — fill in once B2 has a deploy and the three slices are
-> wired together.
-
-Until then the two built slices run side by side, each on its own port and
-neither depending on the other:
+Three services, three ports, nothing shared but HTTP.
 
 ```bash
-cd capture && uv run uvicorn app.main:app --reload --port 8000   # A2
-cd market  && uv run uvicorn app.main:app --reload --port 8100   # C1
+cd platform && uv run python -m app.seed                          # once
+cd platform && uv run uvicorn app.main:app --reload --port 8200   # B2
+cd capture  && uv run uvicorn app.main:app --reload --port 8000   # A2
+cd market   && uv run uvicorn app.main:app --reload --port 8100   # C1
 ```
 
-A2 turns a photo and a voice note into a `Listing`. C1 renders a
-`Listing` as a shop. The join between them is B2's database, so for now C1
-reads its own seed catalogue instead.
+By default C1 still runs off its own seed catalogue, which keeps it
+demoable with nothing else up. To point it at the real database instead:
+
+```bash
+cd market
+CRAFTLY_ADAPTERS=http CRAFTLY_PLATFORM_URL=http://localhost:8200 \
+  uv run uvicorn app.main:app --reload --port 8100
+```
+
+Everything C1 shows — catalogue, artisans, inventory, passports, QR codes,
+placed orders — then comes from B2. The verification codes do not change,
+so any hang-tag already printed still resolves.
+
+> **Ports.** B2 runs on **8200**, not the `8000` that
+> `market/.env.example` suggests as `CRAFTLY_PLATFORM_URL` — A2 is already
+> on 8000, and pointing C1 there gives it the capture service and a 404
+> shop. Set the variable explicitly, as above.
+>
+> **Prices still need B1's seam closing.** C1 assumes `POST /price` and
+> `POST /split` on `CRAFTLY_ENGINES_URL`; B1's service exposes
+> `POST /api/predict` and `POST /api/bulk-order`. Until those agree, a
+> fully-`http` C1 returns 503 on any page that needs a price. Catalogue,
+> passports, QR and orders are unaffected — that is B2, and it is wired.
+
+### The end-to-end path, today
+
+1. A2 turns a photo and a voice note into a `Listing`.
+2. `POST /listings` on B2 persists it; publishing mints its passport and QR.
+3. C1 reads `GET /catalog/entries` and renders the shop.
+4. A buyer scans a tag at a mela; `GET /passports/by-code/{code}` answers.
+5. Checkout `POST /orders` to B2.
+6. The artisan accepts, dispatches and delivers from her phone.
+7. Delivery settles the order and writes a payout row per artisan, with
+   her take-home paid exactly as quoted and the marketplace's fee taken
+   only from the margin above the wage floor.
 
 ## Team
 

@@ -1,0 +1,69 @@
+# Craftly platform (B2), plus the buyer surfaces pointed at it.
+#
+#   docker compose up --build
+#   docker compose run --rm platform python -m app.seed
+#
+# Two services and one named volume. No database container, because the
+# default is SQLite on that volume — see the `postgres` profile at the
+# bottom for the switch, which is a URL change and nothing else.
+#
+# CRAFTLY_PUBLIC_URL is the setting most likely to be wrong here. It is
+# baked into every QR code and it must be an address a phone can reach, so
+# on a laptop at a demo it is the laptop's LAN IP, not localhost:
+#
+#   CRAFTLY_PUBLIC_URL=http://192.168.1.5:8100 docker compose up
+
+services:
+  platform:
+    build: .
+    ports:
+      - "8200:8200"
+    volumes:
+      - craftly-data:/data
+      # C1's committed seed catalogue, read-only — the importer only reads it.
+      - ../market/seed:/seed:ro
+    environment:
+      CRAFTLY_SEED_DIR: /seed
+      CRAFTLY_PUBLIC_URL: ${CRAFTLY_PUBLIC_URL:-http://localhost:8100}
+      CRAFTLY_PLATFORM_SELF_URL: ${CRAFTLY_PLATFORM_SELF_URL:-http://localhost:8200}
+      CRAFTLY_SECRET_KEY: ${CRAFTLY_SECRET_KEY:-}
+      # Both default to their insecure-for-production value so that a
+      # `docker compose up` with no .env is a working demo. /health lists
+      # them, and the startup log says so.
+      CRAFTLY_OTP_ECHO: ${CRAFTLY_OTP_ECHO:-true}
+      CRAFTLY_REQUIRE_ORDER_AUTH: ${CRAFTLY_REQUIRE_ORDER_AUTH:-false}
+    restart: unless-stopped
+
+  # C1's storefront, with its adapters pointed at the real platform.
+  # Commented out rather than deleted: market/ has no Dockerfile yet, and a
+  # compose file that fails to build is worse than one that starts what it can.
+  #
+  # market:
+  #   build: ../market
+  #   ports:
+  #     - "8100:8100"
+  #   environment:
+  #     CRAFTLY_ADAPTERS: http
+  #     CRAFTLY_PLATFORM_URL: http://platform:8200
+  #     CRAFTLY_ENGINES_URL: http://engines:8010
+  #   depends_on:
+  #     - platform
+
+volumes:
+  craftly-data:
+
+# Postgres, when SQLite stops being enough. Start it with
+#   docker compose --profile postgres up
+# and set CRAFTLY_DATABASE_URL on the platform service to
+#   postgresql+psycopg://craftly:craftly@db/craftly
+# Nothing in app/ changes.
+#
+#  db:
+#    profiles: [postgres]
+#    image: postgres:16-alpine
+#    environment:
+#      POSTGRES_USER: craftly
+#      POSTGRES_PASSWORD: craftly
+#      POSTGRES_DB: craftly
+#    volumes:
+#      - craftly-pg:/var/lib/postgresql/data
