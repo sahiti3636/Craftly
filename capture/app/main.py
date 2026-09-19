@@ -241,3 +241,11 @@ async def create_listing_endpoint(
 @app.get("/demo", response_class=HTMLResponse)
 async def demo_page() -> str:
     return (STATIC_DIR / "demo.html").read_text(encoding="utf-8")
+
+
+@app.get("/mobile-demo", response_class=HTMLResponse)
+async def mobile_demo_page() -> str:
+    """A1's phone-shaped demo UI (capture -> confirm -> orders), served
+    same-origin so it can call /listing/create and /listing/confirm
+    directly with no CORS setup needed."""
+    return (STATIC_DIR / "mobile_demo.html").read_text(encoding="utf-8")

@@ -56,7 +56,7 @@ Artisan view: capture (photo + voice: what it is, material cost, hours)
 | `capture/` | Pair A | Working |
 | `platform/` | Pair B | TODO |
 | `market/` | Pair C | C1 working, C2 TODO |
-| `app/` (mobile) | Pair A | TODO |
+| `app/` (mobile) | Pair A | TODO — native app deferred to the final project; see A1 below for the working demo |
 | `schema/` | Shared contract | Working |
 
 ## The shared contract
@@ -100,20 +100,29 @@ Hindi and English resolve numbers end to end. TTS is a dev-only gTTS
 backend. The draft store is in-memory. Blur and ASR thresholds are tuned
 against synthetic fixtures, not real phone media.
 
-### A1 — Artisan mobile app  🔲 TODO
+### A1 — Artisan mobile app  ✅ demo
 
-> **Owner:** _TBD_
+> **Owner:** Tejas Kollipara
 >
 > Capture screen, two-button home, offline queue and sync, fulfilment
-> view, language switching, onboarding and consent.
+> view, language switching, onboarding and consent — delivered for now
+> as a phone-shaped browser demo at
+> [`capture/static/mobile_demo.html`](capture/static/mobile_demo.html)
+> (served same-origin by A2's backend at `GET /mobile-demo`, so it calls
+> the real `/listing/create` and `/listing/confirm` endpoints, no mocks).
+> A native app is deferred to the final project.
 >
-> - [ ] Camera + mic capture, calls `POST /listing/create`
-> - [ ] Confirmation loop UI (plays `summary_spoken`, one tap to confirm)
-> - [ ] Offline queue — capture works with no network, syncs later
-> - [ ] Fulfilment view: accept order, packing slip, dispatch
-> - [ ] Language selection at onboarding + AI-call consent toggle
+> - [x] Camera + mic capture, calls `POST /listing/create`
+> - [x] Confirmation loop UI (plays `summary_spoken`, one tap to confirm)
+> - [x] Offline queue — capture works with no network, syncs later
+> - [x] Fulfilment view: accept order, packing slip, dispatch (local mock
+>       data — no order-engine backend to call yet, see B1/C2 below)
+> - [x] Language selection at onboarding + AI-call consent toggle
 >
-> _Setup and run instructions go here._
+> ```bash
+> cd capture && uv sync && uv run uvicorn app.main:app --reload
+> ```
+> then open `http://localhost:8000/mobile-demo`.
 
 ---
 
@@ -525,7 +534,7 @@ reads its own seed catalogue instead.
 
 | Role | Name |
 |---|---|
-| A1 — Artisan app | _TBD_ |
+| A1 — Artisan app | Tejas Kollipara |
 | A2 — Capture AI | _TBD_ |
 | B1 — Engines | _TBD_ |
 | B2 — Platform | _TBD_ |
