@@ -2,7 +2,8 @@
 
 Slice C1. Runs on its own with `CRAFTLY_ADAPTERS=stub`; points at the real
 B1 and B2 with `CRAFTLY_ADAPTERS=http`. See `app/ports.py` for the seams
-and `README.md` for what each surface is for.
+and the "C1 — Buyer surfaces" section of the repo's README.md for what
+each surface is for.
 
     uv run uvicorn app.main:app --reload --port 8100
 """
