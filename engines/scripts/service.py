@@ -56,8 +56,8 @@ import pandas as pd
 from features import (CATEGORIES, CACHE, IMAGES, MATERIALS, MODEL_DIR, UNKNOWN,
                          build_extra_row, build_structured_row, clip_weights_cached,
                          combined_similarity, compose_text, load_image, make_encoders,
-                         normalise_material, normalise_subcategory, parse_pack_count,
-                         parse_size_cm, top_k_indices, use_encoder_worker)
+                         normalise_category, normalise_material, normalise_subcategory,
+                         parse_pack_count, parse_size_cm, top_k_indices, use_encoder_worker)
 
 # NOTE: this module deliberately never imports torch. When B1_ENCODER_WORKER is on (the default on
 # macOS) both encoders live in a child process, so the parent holds only the booster's OpenMP runtime.
@@ -412,8 +412,10 @@ class PricingEngine:
 
     def featurize(self, *, image, title: str, description: str, category: str,
                   subcategory: str | None, material: str | None) -> dict:
-        if category not in CATEGORIES:
-            raise ValueError(f"category must be one of {CATEGORIES}")
+        norm_category = normalise_category(category)
+        if norm_category is None:
+            raise ValueError(f"category must be one of {CATEGORIES} (got {category!r})")
+        category = norm_category
         if not title or not title.strip():
             raise ValueError("title is required")
         pil = load_image(image) if image is not None else None
@@ -481,17 +483,31 @@ class PricingEngine:
                   hourly_wage: float = HOURLY_WAGE_INR, overhead_pct: float = OVERHEAD_PCT,
                   with_passport_premium: bool = True) -> dict:
         t0 = time.time()
+        norm_category = normalise_category(category)
+        if norm_category is None:
+            raise ValueError(f"category must be one of {CATEGORIES} (got {category!r})")
+        category = norm_category
         f = self.featurize(image=image, title=title, description=description, category=category,
                            subcategory=subcategory, material=material)
         # 1 comparables (already retrieved while featurising — they are model inputs now)
         comp = f["comparables"]
         # 2 ML
         ml = self.market_price(f["X"], category)
-        # 3 blend, with the weight chosen on validation data at training time
+        # 3 blend, with the weight chosen on validation data at training time —
+        # but leaned further toward the comparables when the model and the real comparable sales
+        # disagree sharply AND the comparables are themselves trustworthy (similar enough listings,
+        # not noise). The comparables are actual transacted prices; a model this far from them is
+        # more likely extrapolating on an unusual item than the market itself being wrong. The
+        # weight never drops below half its trained value, so a validated, calibrated model still
+        # anchors the estimate rather than being discarded outright.
         w = self.blend_weight
-        market_estimate = w * ml["ai_market_price"] + (1 - w) * comp["stats"]["median"]
         ratio = max(ml["ai_market_price"], comp["stats"]["median"]) / max(
             1.0, min(ml["ai_market_price"], comp["stats"]["median"]))
+        w_eff = w
+        if ratio > DISAGREEMENT_RATIO and comp["stats"]["mean_similarity"] >= 0.4:
+            excess = min(ratio - DISAGREEMENT_RATIO, DISAGREEMENT_RATIO)   # cap the adjustment
+            w_eff = max(w / 2, w - 0.15 * excess)
+        market_estimate = w_eff * ml["ai_market_price"] + (1 - w_eff) * comp["stats"]["median"]
         # 4–7 business rules
         floor = sustainable_floor(material_cost, labour_hours, hourly_wage, overhead_pct)
         fl = enforce_floor(market_estimate, floor["sustainable_floor"])
@@ -507,7 +523,10 @@ class PricingEngine:
         elif not f["has_image"]:
             warnings.append("No usable photo — price is based on text and attributes only.")
         if ratio > DISAGREEMENT_RATIO:
-            warnings.append(f"Model and comparable listings disagree by {ratio:.1f}× — review the price manually.")
+            note = (" The estimate below already leans toward the comparables to compensate."
+                    if w_eff != w else "")
+            warnings.append(f"Model and comparable listings disagree by {ratio:.1f}× — "
+                            f"review the price manually.{note}")
         if not f["subcategory_known"]:
             warnings.append("Subcategory not in the training vocabulary — treated as 'other'.")
         if fl["floor_binding"]:
@@ -519,7 +538,11 @@ class PricingEngine:
             f"₹{ml['ai_market_price']:,.0f} (80% band ₹{ml['price_band_80pct'][0]:,.0f}–₹{ml['price_band_80pct'][1]:,.0f}).",
             f"{comp['stats']['n']} similar products ({comp['stats']['searched_within']}) sell for a median of "
             f"₹{comp['stats']['median']:,.0f} (middle half ₹{comp['stats']['iqr'][0]:,.0f}–₹{comp['stats']['iqr'][1]:,.0f}).",
-            (f"Market estimate ₹{market_estimate:,.0f}: the comparables already feed the model as "
+            (f"Model and comparables disagree {ratio:.1f}× — leaning more on the {comp['stats']['n']} real "
+             f"comparable sales: blended {w_eff:.0%} model + {1 - w_eff:.0%} comparables = "
+             f"₹{market_estimate:,.0f} (trained split is {w:.0%}/{1 - w:.0%})."
+             if w_eff != w else
+             f"Market estimate ₹{market_estimate:,.0f}: the comparables already feed the model as "
              f"features, and blending them in again did not help on validation data."
              if w >= 0.999 else
              f"Blended market estimate: {w:.0%} model + {1 - w:.0%} comparables = ₹{market_estimate:,.0f}."),
@@ -544,7 +567,7 @@ class PricingEngine:
             "features": f["dims"],
             "model": {"version": self.version, "algo": self.algo, "target_transform": self.transform,
                       "ensemble_members": len(self.members), "calibrated": bool(self.calibration),
-                      "blend_model_weight": w},
+                      "blend_model_weight": w, "blend_model_weight_used": r2(w_eff)},
             "ai_market_price": ml["ai_market_price"],
             "price_band_80pct": ml["price_band_80pct"],
             "comparables": comp["items"],
@@ -693,6 +716,116 @@ def create_app():
         if load_passport(passport_id) is None:
             raise HTTPException(404, "passport not found")
         return FileResponse(PASSPORT_DIR / f"{passport_id}.png", media_type="image/png")
+
+    # ── Thin aliases for C1's HttpPriceEngine/HttpOrderEngine adapter
+    #    (market/app/adapters/http_platform.py), which POST to /price and /split
+    #    with PriceQuote/SplitPlan shapes (market/app/contracts.py) rather than
+    #    the native /api/predict and /api/bulk-order ones above. ──
+    class ListingIn(BaseModel):
+        listing_id: str
+        title_en: str | None = None
+        title_hi: str | None = None
+        description_en: str | None = None
+        description_hi: str | None = None
+        category: str | None = None
+        craft_type: str | None = None
+        material: str | None = None
+        material_cost_inr: float | None = None
+        hours_worked: float | None = None
+
+    class ArtisanIn(BaseModel):
+        artisan_id: str
+        name: str | None = None
+        village: str | None = None
+        cluster_id: str | None = None
+
+    class InventoryIn(BaseModel):
+        listing_id: str | None = None
+
+    class PriceRequest(BaseModel):
+        listing: ListingIn
+        artisan: ArtisanIn
+        inventory: InventoryIn | None = None
+        channel: str = "own_store"
+        quantity: int = 1
+
+    class SplitRequest(BaseModel):
+        listing: ListingIn
+        artisan: ArtisanIn
+        inventory: InventoryIn | None = None
+        quantity: int = Field(gt=0)
+        deadline_days: int | None = None
+
+    CHANNEL_TO_ENGINE = {"own_store": "d2c", "mela_qr": "d2c", "b2b": "b2b",
+                        "amazon": "marketplace", "flipkart": "marketplace", "ebay": "marketplace"}
+
+    def _recommend_for_listing(listing: "ListingIn") -> tuple[dict, bool]:
+        # category validation/normalisation happens inside recommend() itself (features.normalise_category),
+        # so a listing category that is a close synonym of B1's taxonomy (e.g. another slice sending
+        # "jewelry" or "decor") still resolves correctly instead of failing on an exact-string mismatch.
+        title = listing.title_en or listing.title_hi
+        if not title:
+            raise HTTPException(422, "listing.title_en or listing.title_hi is required")
+        floor_incomplete = listing.material_cost_inr is None or listing.hours_worked is None
+        try:
+            res = get_engine().recommend(
+                title=title, description=listing.description_en or listing.description_hi or "",
+                category=listing.category, subcategory=listing.craft_type, material=listing.material,
+                material_cost=float(listing.material_cost_inr or 0),
+                labour_hours=float(listing.hours_worked or 0))
+        except ValueError as ex:
+            raise HTTPException(422, str(ex))
+        except FileNotFoundError as ex:
+            raise HTTPException(503, str(ex))
+        return res, floor_incomplete
+
+    @app.post("/price")
+    def price_quote(req: PriceRequest):
+        res, floor_incomplete = _recommend_for_listing(req.listing)
+        engine_channel = CHANNEL_TO_ENGINE.get(req.channel, "d2c")
+        ch = res["channels"][engine_channel]
+        return {
+            "listing_id": req.listing.listing_id,
+            "channel": req.channel,
+            "floor_inr": int(round(res["floor"]["sustainable_floor"])),
+            "market_low_inr": int(round(res["price_band_80pct"][0])),
+            "market_high_inr": int(round(res["price_band_80pct"][1])),
+            "passport_premium_inr": int(round(res["passport_premium"]["passport_premium"])),
+            "price_inr": int(round(ch["price"])),
+            "artisan_take_home_inr": int(round(ch["artisan_net"])),
+            "channel_fee_inr": int(round(ch["price"] - ch["artisan_net"])),
+            "below_floor": res["floor_enforcement"]["floor_binding"],
+            "floor_incomplete": floor_incomplete,
+            "explanation": res["explanation"],
+        }
+
+    @app.post("/split")
+    def split_plan(req: SplitRequest):
+        res, _ = _recommend_for_listing(req.listing)
+        # use the category recommend() actually priced against (normalised — see _recommend_for_listing),
+        # not the raw listing field, so a synonym like "decor" still matches artisans' compatible_categories
+        category = res["input"]["category"]
+        unit_payout = res["channels"]["b2b"]["artisan_net"]
+        try:
+            alloc = allocate_bulk_order(req.quantity, load_roster(), category,
+                                        unit_payout=unit_payout, deadline_days=req.deadline_days)
+        except ValueError as ex:
+            raise HTTPException(422, str(ex))
+        allocations = [{
+            "artisan_id": a["artisan_id"], "artisan_name": a.get("name"), "village": a.get("region"),
+            "quantity": a["units"], "lead_time_days": a.get("eta_days"),
+            "take_home_inr": int(round(unit_payout)),
+        } for a in alloc["allocations"]]
+        return {
+            "listing_id": req.listing.listing_id,
+            "quantity_requested": alloc["requested"],
+            "quantity_allocated": alloc["allocated"],
+            "allocations": allocations,
+            "lead_time_days": alloc["estimated_days_to_complete"],
+            "feasible": alloc["fully_met"],
+            "shortfall": alloc["shortfall"],
+            "notes": [f"{e['artisan_id']}: {e['reason']}" for e in alloc["excluded"]],
+        }
 
     return app
 

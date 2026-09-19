@@ -202,6 +202,50 @@ def normalise_material(value: str | None) -> str:
     return material_from_text(str(value))
 
 
+# ── Category vocabulary: callers outside B1 (the artisan app, another slice's taxonomy) are not
+# guaranteed to send exactly one of the 10 CATEGORIES ids. Unlike material/subcategory, category
+# cannot fall back to "other" — it selects the category-conditioned price anchors and comparable
+# search, so a silent wrong guess would misprice the item. A synonym maps to the one category it
+# unambiguously means; anything else is a real error the caller must fix.
+CATEGORY_ALIASES: dict[str, str] = {
+    "jewelry": "jewellery", "jewelries": "jewellery", "jewellry": "jewellery",
+    "clothing": "apparel", "clothes": "apparel", "garment": "apparel", "garments": "apparel",
+    "wear": "apparel", "shoes": "footwear", "sandals": "footwear", "slippers": "footwear",
+    "footwears": "footwear", "decor": "home_decor", "decoration": "home_decor",
+    "decorations": "home_decor", "home_decoration": "home_decor", "home_decorations": "home_decor",
+    "showpiece": "home_decor", "showpieces": "home_decor",
+    "furnishing": "home_furnishing", "furnishings": "home_furnishing",
+    "home_furnishings": "home_furnishing", "home_furnishing_": "home_furnishing",
+    "kitchen": "kitchen_dining", "kitchenware": "kitchen_dining", "dining": "kitchen_dining",
+    "tableware": "kitchen_dining", "crockery": "kitchen_dining", "kitchen_and_dining": "kitchen_dining",
+    "bag": "bags_accessories", "bags": "bags_accessories", "handbag": "bags_accessories",
+    "handbags": "bags_accessories", "purse": "bags_accessories", "purses": "bags_accessories",
+    "accessories": "bags_accessories", "accessory": "bags_accessories",
+    "toy": "toys_games", "toys": "toys_games", "game": "toys_games", "games": "toys_games",
+    "toys_and_games": "toys_games",
+    "stationary": "stationery", "stationeries": "stationery",   # "stationary" is the classic typo
+    "furnitures": "furniture", "woodwork": "furniture",
+}
+
+
+def normalise_category(value: str | None) -> str | None:
+    """
+    Accept a canonical category id or a close synonym/typo from a taxonomy B1 does not own (e.g.
+    A2's capture schema). Returns None — never a guessed category — when nothing matches, so an
+    unrecognised category is still a loud error rather than a silent misprice.
+    """
+    if not value:
+        return None
+    v = str(value).strip().lower().replace(" ", "_").replace("-", "_")
+    if v in CATEGORIES:
+        return v
+    if v in CATEGORY_ALIASES:
+        return CATEGORY_ALIASES[v]
+    if v.endswith("s") and v[:-1] in CATEGORIES:      # plain plural of a canonical id
+        return v[:-1]
+    return None
+
+
 # ── Text cleaning: remove target leakage & marketplace boilerplate ──
 # ~45% of Flipkart descriptions contain the selling price ("Buy X for Rs.379 online").
 # A new artisan product never has that, so it must never be learned from.

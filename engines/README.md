@@ -61,7 +61,7 @@ premium, channel fees, allocation and passport are deterministic rules in `servi
 | `image` | file | optional; missing photo → zero image vector and a warning |
 | `title` | string | required |
 | `description` | string | prices and marketplace boilerplate are scrubbed before embedding |
-| `category` | string | one of 10 canonical categories (`GET /api/taxonomy`) |
+| `category` | string | one of 10 canonical categories (`GET /api/taxonomy`); close synonyms/typos from another slice's taxonomy (`"jewelry"`, `"decor"`, `"stationary"`, plurals, …) are normalised to the canonical id — see `normalise_category()` in `features.py` |
 | `subcategory` | string | optional; unknown values encode as `other` |
 | `material` | string | canonical id or free text ("mango wood" → `wood`) |
 | `material_cost` | number | ₹, artisan-supplied |
@@ -137,7 +137,12 @@ Defaults: hourly_wage ₹60   overhead 15 %   passport premium 5 %   k comparabl
 1  AI market price        model prediction, calibrated              ai_market_price
 2  Comparable median      median price of the k = 8 nearest listings comparable_median
 3  Market estimate        w · ai_market_price + (1 − w) · comparable_median
-                          w is chosen on validation at training time (metadata.blend_model_weight)
+                          w is chosen on validation at training time (metadata.blend_model_weight),
+                          but leaned further toward the comparables when the model and the
+                          comparables disagree by more than 2× AND the comparables are themselves
+                          trustworthy (mean similarity ≥ 0.4) — real transacted prices outrank a
+                          model that is likely extrapolating, capped so w never drops below half its
+                          trained value (model.blend_model_weight_used in the API response)
 
 4  Sustainable floor      labour_cost = labour_hours × hourly_wage
                           subtotal    = material_cost + labour_cost
@@ -367,6 +372,8 @@ all three channels, comparables are real training listings, a 500-unit order spl
 | `GET` | `/api/model/info` | model metadata, metrics, taxonomy, business parameters |
 | `GET` | `/api/health` | service and artifact status |
 | `GET` | `/` | redirects to the interactive Swagger docs at `/docs` |
+| `POST` | `/price` | `{listing, artisan, inventory, channel, quantity}` → `PriceQuote` JSON |
+| `POST` | `/split` | `{listing, artisan, inventory, quantity, deadline_days}` → `SplitPlan` JSON |
 
 ```bash
 curl -X POST localhost:8000/api/predict \
@@ -376,6 +383,23 @@ curl -X POST localhost:8000/api/predict \
 
 curl -X POST localhost:8000/api/bulk-order -H 'content-type: application/json' \
   -d '{"product_category":"home_decor","quantity":500,"unit_payout":700,"deadline_days":30}'
+```
+
+**`/price` and `/split`** are thin aliases over the same pricing/allocation logic above, shaped to match
+C1's `HttpPriceEngine` / `HttpOrderEngine` adapter (`market/app/adapters/http_platform.py`), which speaks
+`PriceQuote` / `SplitPlan` (`market/app/contracts.py`) rather than B1's native `/api/*` shapes. `channel`
+(`own_store` / `mela_qr` / `b2b` / `amazon` / `flipkart` / `ebay`) maps onto the `d2c` / `b2b` / `marketplace`
+buckets from §5; a listing missing `material_cost_inr` or `hours_worked` still prices (treated as `0`) but
+comes back with `floor_incomplete: true`, matching the contract's "do not sell until the artisan is asked"
+rule. `/split` prices the listing on the `b2b` channel to get a per-unit payout, then runs the same
+`allocate_bulk_order` as `/api/bulk-order` against `demo_artisans.json`.
+
+```bash
+curl -X POST localhost:8000/price -H 'content-type: application/json' -d '{
+  "listing": {"listing_id":"L1","artisan_id":"A1","title_en":"Brass diya lamp","category":"home_decor",
+              "material":"brass","material_cost_inr":250,"hours_worked":6},
+  "artisan": {"artisan_id":"A1","name":"Lakshmi Devi"},
+  "channel": "own_store", "quantity": 1}'
 ```
 
 ---
