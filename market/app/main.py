@@ -35,6 +35,26 @@ app.include_router(passport.router)
 app.include_router(api.router)
 
 
+@app.on_event("startup")
+def prewarm_reels() -> None:
+    """Build the first few reels in the background so the app's first tap
+    on play is instant (a build is a few seconds; every later request reuses it)."""
+    import threading
+
+    def work() -> None:
+        try:
+            from app.adapters import registry
+            from app.contracts import Channel
+            from app.reel import build as build_reel
+
+            for card in [c for c in deps.cards(Channel.OWN_STORE) if c.image_url]:
+                build_reel(card, lang="en", passport=registry.passports().by_listing(card.listing_id))
+        except Exception:  # never let a warm-up problem affect serving
+            pass
+
+    threading.Thread(target=work, daemon=True).start()
+
+
 @app.exception_handler(PlatformUnavailable)
 def platform_down(request: Request, exc: PlatformUnavailable):
     """B1 or B2 is unreachable.

@@ -360,9 +360,12 @@ def build_ffmpeg_command(
             args += ["-loop", "1", "-t", f"{duration:.3f}", "-i", str(path)]
             input_index += 1
             frames_count = max(2, int(duration * FPS))
+            # zoompan emits `d` frames per *input* frame, and -loop feeds it a
+            # frame every tick — untrimmed, a 4s still became ~100x too many frames.
+            # Feed it exactly one.
             direction = "min(zoom+0.0007,1.12)" if i % 2 == 0 else "if(lte(zoom,1.0),1.12,max(1.001,zoom-0.0007))"
             filters.append(
-                f"[{input_index - 1}:v]scale={WIDTH * 2}:{HEIGHT * 2},"
+                f"[{input_index - 1}:v]trim=end_frame=1,scale={(WIDTH * 6 // 5) // 2 * 2}:{(HEIGHT * 6 // 5) // 2 * 2},"
                 f"zoompan=z='{direction}':d={frames_count}:"
                 f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={WIDTH}x{HEIGHT}:fps={FPS},"
                 f"format=yuv420p,setsar=1[v{i}]"
@@ -379,7 +382,7 @@ def build_ffmpeg_command(
         "-c:v",
         "libx264",
         "-preset",
-        "veryfast",
+        "ultrafast",
         "-crf",
         "22",
         "-pix_fmt",
