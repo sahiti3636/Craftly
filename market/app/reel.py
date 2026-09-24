@@ -23,6 +23,13 @@ is complete on its own: with no ffmpeg at all, `build()` returns the same
 frames as PNGs and the surface shows the reel as a storyboard. Degrade,
 don't crash — the same contract A2's pipeline holds itself to.
 
+A voiceover reads one short line per beat, in the reel's language
+(`app/voice.py`, gTTS). The captions still carry everything, so a reel
+watched on mute loses nothing. A beat whose line runs longer than its
+caption slot is lengthened rather than cut off, so a voiced reel can run
+a few seconds past fifteen. When the voice cannot be made — offline,
+say — the reel is built silent with a warning, never not at all.
+
 No music. A reel with an unlicensed track is a takedown waiting to
 happen on exactly the marketplaces this project is trying to reach, and
 picking a licensed bed is a decision for whoever owns distribution, not
@@ -31,14 +38,17 @@ a default buried in a renderer.
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
-from dataclasses import dataclass, field
+import tempfile
+from dataclasses import dataclass, field, replace
+from functools import lru_cache
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, features
 
-from app import config
+from app import config, voice
 from app.captions import CaptionCard, REEL_SECONDS, script
 from app.contracts import Passport
 from app.view import ProductCard
@@ -129,6 +139,7 @@ def find_font(lang: str, *, bold: bool = False) -> Path | None:
     return _first_existing(_LATIN_BOLD if bold else _LATIN_FONTS)
 
 
+@lru_cache(maxsize=64)
 def _load(path: Path | None, size: int) -> ImageFont.FreeTypeFont:
     if path is None:
         return ImageFont.load_default()
@@ -158,7 +169,130 @@ def _wrap(
 
 
 # ---------------------------------------------------------------------------
-# frame composition (no ffmpeg needed)
+# scripts that need shaping
+# ---------------------------------------------------------------------------
+#
+# Devanagari is not drawn one character after another: the ि matra is typed
+# after its consonant but drawn before it, and consonant clusters join into
+# conjuncts. Pillow only does that with libraqm, which its Windows wheels
+# cannot load out of the box — without it "हस्तनिर्मित" comes out as
+# "हस्तनरि्मति", which any Hindi reader sees at once. FFmpeg's drawtext
+# shapes with HarfBuzz, so when Pillow cannot, the Indic lines of a frame
+# are drawn by ffmpeg and pasted onto the frame Pillow composed.
+
+
+def _needs_shaping(text: str) -> bool:
+    """True for text in an Indic script (Devanagari through Sinhala)."""
+    return any("ऀ" <= ch <= "෿" for ch in text)
+
+
+@lru_cache(maxsize=1)
+def pillow_shapes_text() -> bool:
+    return bool(features.check("raqm"))
+
+
+@lru_cache(maxsize=8)
+def _ffmpeg_shapes_text(binary: str) -> bool:
+    """drawtext shapes with HarfBuzz from FFmpeg 6.1, the release that also
+    added its `y_align` option. Older drawtext only reorders right-to-left
+    text and would draw Devanagari as badly as Pillow does."""
+    if shutil.which(binary) is None:
+        return False
+    try:
+        completed = subprocess.run(
+            [binary, "-hide_banner", "-h", "filter=drawtext"],
+            capture_output=True, text=True, timeout=20, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return "y_align" in completed.stdout
+
+
+def can_render_hindi() -> bool:
+    """Whether Hindi captions come out correctly shaped on this machine."""
+    if find_font("hi") is None:
+        return False
+    return pillow_shapes_text() or _ffmpeg_shapes_text(config.FFMPEG)
+
+
+def _filter_path(path: Path) -> str:
+    """A file path as a quoted drawtext option. A Windows drive colon is an
+    option separator to ffmpeg, so it is escaped."""
+    text = path.resolve().as_posix().replace("'", r"'\''").replace(":", r"\:")
+    return f"'{text}'"
+
+
+class _Text:
+    """Draws the text of one frame.
+
+    Pillow draws what it can shape. Indic lines it cannot shape are queued
+    and drawn by ffmpeg in one call at `flush()`, as white-on-black masks —
+    one per colour — that fill the colour in over the composed frame.
+    """
+
+    def __init__(self, frame: Image.Image, draw: ImageDraw.ImageDraw) -> None:
+        self.frame = frame
+        self.draw = draw
+        self._queued: list[tuple[tuple[int, int], str, Path, int, tuple]] = []
+
+    def __call__(self, xy: tuple[int, int], text: str, font_path: Path | None, size: int, fill: tuple) -> None:
+        if font_path is not None and _needs_shaping(text) and not pillow_shapes_text():
+            self._queued.append((xy, text, font_path, size, fill))
+        else:
+            self.draw.text(xy, text, font=_load(font_path, size), fill=fill)
+
+    def flush(self) -> None:
+        if not self._queued:
+            return
+        by_colour: dict[tuple, list[tuple[tuple[int, int], str, Path, int]]] = {}
+        for xy, text, font_path, size, fill in self._queued:
+            by_colour.setdefault(fill, []).append((xy, text, font_path, size))
+
+        with tempfile.TemporaryDirectory(prefix="craftly_text_") as tmp:
+            workdir = Path(tmp)
+            chains: list[str] = []
+            outputs: list[str] = []
+            for c, runs in enumerate(by_colour.values()):
+                steps = []
+                for r, ((x, y), text, font_path, size) in enumerate(runs):
+                    # Text goes through a file so no caption can break the
+                    # filter syntax; expansion=none keeps a literal "%".
+                    name = f"t{c}_{r}.txt"
+                    (workdir / name).write_text(text, encoding="utf-8")
+                    steps.append(
+                        f"drawtext=fontfile={_filter_path(font_path)}:textfile={name}:"
+                        f"fontsize={size}:fontcolor=white:x={x}:y={y}:y_align=font:expansion=none"
+                    )
+                chains.append(f"[s{c}]" + ",".join(steps) + f"[m{c}]")
+                outputs += ["-map", f"[m{c}]", "-frames:v", "1", f"m{c}.png"]
+            split = "".join(f"[s{c}]" for c in range(len(by_colour)))
+            graph = f"[0:v]split={len(by_colour)}{split};" + ";".join(chains)
+            command = [
+                config.FFMPEG, "-hide_banner", "-loglevel", "error", "-y",
+                "-f", "lavfi", "-i", f"color=black:s={WIDTH}x{HEIGHT}:d=1,format=rgb24",
+                "-filter_complex", graph, *outputs,
+            ]
+            try:
+                completed = subprocess.run(
+                    command, cwd=workdir, capture_output=True, text=True, timeout=60, check=False
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise ReelError(f"ffmpeg could not draw the Hindi captions ({exc}).") from exc
+            if completed.returncode != 0:
+                tail = " / ".join((completed.stderr or "").strip().splitlines()[-3:])
+                raise ReelError(f"ffmpeg could not draw the Hindi captions: {tail}")
+
+            for c, fill in enumerate(by_colour):
+                with Image.open(workdir / f"m{c}.png") as rendered:
+                    mask = rendered.convert("L")
+                if len(fill) == 4 and fill[3] < 255:
+                    mask = mask.point(lambda v, a=fill[3]: v * a // 255)
+                self.frame.paste(Image.new("RGB", self.frame.size, fill[:3]), (0, 0), mask)
+        self._queued.clear()
+
+
+# ---------------------------------------------------------------------------
+# frame composition (Pillow; ffmpeg only for text Pillow cannot shape)
 # ---------------------------------------------------------------------------
 
 
@@ -240,8 +374,10 @@ def compose_frame(
         frame.paste(shadow, (x - 20, y - 10), shadow)
         frame.paste(art, (x, y))
 
-    _draw_wordmark(draw, lang)
-    _draw_caption(frame, draw, caption, lang)
+    text = _Text(frame, draw)
+    _draw_wordmark(text, lang)
+    _draw_caption(frame, draw, text, caption, lang)
+    text.flush()
     return frame
 
 
@@ -263,45 +399,47 @@ def _scrim(frame: Image.Image, top: int) -> None:
     frame.paste(Image.new("RGB", (WIDTH, height), (16, 15, 13)), (0, top), mask)
 
 
-def _draw_wordmark(draw: ImageDraw.ImageDraw, lang: str) -> None:
-    font = _load(find_font("en", bold=True), 34)
-    draw.text((MARGIN, 72), "CRAFTLY", font=font, fill=INK)
-    small = _load(find_font(lang), 26)
-    draw.text(
+def _draw_wordmark(text: _Text, lang: str) -> None:
+    text((MARGIN, 72), "CRAFTLY", find_font("en", bold=True), 34, INK)
+    text(
         (MARGIN, 118),
         "handmade, traceable, fairly priced" if lang == "en" else "हस्तनिर्मित, प्रमाणित, न्यायसंगत",
-        font=small,
-        fill=INK_DIM,
+        find_font(lang),
+        26,
+        INK_DIM,
     )
 
 
 def _draw_caption(
-    frame: Image.Image, draw: ImageDraw.ImageDraw, caption: CaptionCard, lang: str
+    frame: Image.Image, draw: ImageDraw.ImageDraw, text: _Text, caption: CaptionCard, lang: str
 ) -> None:
     max_width = WIDTH - 2 * MARGIN
     sizes = {"hook": 82, "close": 88, "fact": 72}
-    headline_font = _load(find_font(lang, bold=True), sizes.get(caption.style, 72))
-    sub_font = _load(find_font(lang), 40)
-    kicker_font = _load(find_font(lang), 32)
+    headline_size = sizes.get(caption.style, 72)
+    headline_path = find_font(lang, bold=True)
+    body_path = find_font(lang)
 
-    blocks: list[tuple[list[str], ImageFont.FreeTypeFont, int, tuple]] = []
+    # Wrapping measures unshaped widths. Shaping mostly joins Devanagari
+    # glyphs into narrower conjuncts, so a shaped line still fits.
+    blocks: list[tuple[list[str], Path | None, int, int, tuple]] = []
     if caption.kicker:
-        blocks.append((_wrap(draw, caption.kicker, kicker_font, max_width), kicker_font, 44, ACCENT))
-    blocks.append(
-        (_wrap(draw, caption.headline, headline_font, max_width), headline_font, int(sizes.get(caption.style, 72) * 1.18), INK)
-    )
+        lines = _wrap(draw, caption.kicker, _load(body_path, 32), max_width)
+        blocks.append((lines, body_path, 32, 44, ACCENT))
+    lines = _wrap(draw, caption.headline, _load(headline_path, headline_size), max_width)
+    blocks.append((lines, headline_path, headline_size, int(headline_size * 1.18), INK))
     if caption.sub:
-        blocks.append((_wrap(draw, caption.sub, sub_font, max_width), sub_font, 54, INK_DIM))
+        lines = _wrap(draw, caption.sub, _load(body_path, 40), max_width)
+        blocks.append((lines, body_path, 40, 54, INK_DIM))
 
-    height = sum(len(lines) * step for lines, _, step, _ in blocks) + 40 * (len(blocks) - 1)
+    height = sum(len(lines) * step for lines, _, _, step, _ in blocks) + 40 * (len(blocks) - 1)
     y = HEIGHT - 200 - height
 
     # The fade starts well above the text so a pale photo cannot swallow it.
     _scrim(frame, y - 260)
 
-    for lines, font, step, colour in blocks:
+    for lines, font_path, size, step, colour in blocks:
         for line in lines:
-            draw.text((MARGIN, y), line, font=font, fill=colour)
+            text((MARGIN, y), line, font_path, size, colour)
             y += step
         y += 40
 
@@ -321,6 +459,7 @@ def build_ffmpeg_command(
     *,
     making_clip: Path | None = None,
     making_index: int | None = None,
+    narration: list[Path | None] | None = None,
     ffmpeg: str | None = None,
 ) -> list[str]:
     """Assemble the ffmpeg invocation. Pure — returns args, runs nothing.
@@ -329,6 +468,10 @@ def build_ffmpeg_command(
     four-photo reel reads as motion rather than as a slide deck. When a
     making-clip exists it replaces the background of one beat and the
     caption is overlaid on top of the moving footage.
+
+    `narration`, one clip (or None) per frame, becomes the soundtrack:
+    each clip starts just after its beat does and is padded to the beat's
+    length, so the voice stays on the caption it is reading.
     """
     binary = ffmpeg or config.FFMPEG
     args: list[str] = [binary, "-y"]
@@ -374,11 +517,31 @@ def build_ffmpeg_command(
 
     filters.append(f"{''.join(labels)}concat=n={len(frames)}:v=1:a=0[out]")
 
+    audio_map: list[str] = []
+    if narration and any(narration):
+        audio_labels: list[str] = []
+        pcm = "aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo"
+        for i, ((_, duration), clip) in enumerate(zip(frames, narration)):
+            if clip is None:
+                filters.append(f"anullsrc=r=44100:cl=stereo,atrim=end={duration:.3f},{pcm}[a{i}]")
+            else:
+                args += ["-i", str(clip)]
+                filters.append(
+                    f"[{input_index}:a]{pcm},adelay=delays={int(VOICE_LEAD * 1000)}:all=1,"
+                    f"apad=whole_dur={duration:.3f},atrim=end={duration:.3f},"
+                    f"asetpts=PTS-STARTPTS[a{i}]"
+                )
+                input_index += 1
+            audio_labels.append(f"[a{i}]")
+        filters.append(f"{''.join(audio_labels)}concat=n={len(frames)}:v=0:a=1[aout]")
+        audio_map = ["-map", "[aout]", "-c:a", "aac", "-b:a", "128k"]
+
     args += [
         "-filter_complex",
         ";".join(filters),
         "-map",
         "[out]",
+        *audio_map,
         "-c:v",
         "libx264",
         "-preset",
@@ -394,6 +557,87 @@ def build_ffmpeg_command(
         str(output),
     ]
     return args
+
+
+# ---------------------------------------------------------------------------
+# voiceover
+# ---------------------------------------------------------------------------
+
+#: Seconds of quiet before each beat's line starts, and after it ends.
+VOICE_LEAD = 0.3
+VOICE_TAIL = 0.4
+#: gTTS speaks slowly for a reel; 1.15x still sounds natural.
+VOICE_TEMPO = 1.15
+
+
+def _audio_seconds(path: Path) -> float | None:
+    completed = subprocess.run(
+        [config.FFMPEG, "-hide_banner", "-i", str(path)],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    found = re.search(r"Duration: (\d+):(\d+):(\d+(?:\.\d+)?)", completed.stderr or "")
+    if not found:
+        return None
+    hours, minutes, seconds = found.groups()
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+
+
+def _narrate(captions: list[CaptionCard], lang: str, directory: Path, stem: str) -> list[Path | None]:
+    """One clean clip per beat that has a spoken line: synthesised, the
+    silence gTTS leaves at either end trimmed, sped up a touch. Raises
+    VoiceError when any line cannot be made — a reel with a voice on
+    three beats of four sounds broken, so it is all or nothing."""
+    trim = "silenceremove=start_periods=1:start_threshold=-50dB"
+    clips: list[Path | None] = []
+    for i, caption in enumerate(captions):
+        if not caption.spoken:
+            clips.append(None)
+            continue
+        raw = directory / f"{stem}_say{i}.mp3"
+        clip = directory / f"{stem}_say{i}.wav"
+        voice.synthesize(caption.spoken, lang, raw)
+        try:
+            completed = subprocess.run(
+                [
+                    config.FFMPEG, "-hide_banner", "-loglevel", "error", "-y", "-i", str(raw),
+                    "-af", f"{trim},areverse,{trim},areverse,atempo={VOICE_TEMPO}",
+                    "-ar", "44100", "-ac", "2", str(clip),
+                ],
+                capture_output=True, text=True, timeout=60, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise voice.VoiceError(f"The voiceover could not be processed ({exc}).") from exc
+        finally:
+            raw.unlink(missing_ok=True)
+        if completed.returncode != 0 or not clip.exists():
+            raise voice.VoiceError("The voiceover could not be processed by ffmpeg.")
+        clips.append(clip)
+    return clips
+
+
+def _saved_narration(captions: list[CaptionCard], directory: Path, stem: str) -> list[Path | None]:
+    return [
+        path if caption.spoken and path.exists() else None
+        for caption, path in ((c, directory / f"{stem}_say{i}.wav") for i, c in enumerate(captions))
+    ]
+
+
+def _fit_to_voice(captions: list[CaptionCard], clips: list[Path | None]) -> list[CaptionCard]:
+    """Lengthen any beat its line does not fit in, and re-lay the starts.
+
+    The caption script is fifteen seconds; spoken, a long product title
+    can need more. Cutting the voice off mid-word is worse than a reel a
+    few seconds longer, so the beat grows to fit the line.
+    """
+    timed: list[CaptionCard] = []
+    at = 0.0
+    for caption, clip in zip(captions, clips):
+        spoken = _audio_seconds(clip) if clip is not None else None
+        needed = VOICE_LEAD + spoken + VOICE_TAIL if spoken else 0.0
+        duration = round(max(caption.duration, needed), 3)
+        timed.append(replace(caption, start=round(at, 3), duration=duration))
+        at += duration
+    return timed
 
 
 # ---------------------------------------------------------------------------
@@ -427,13 +671,24 @@ def build(
             "for Hindi captions."
         )
         lang = "en"
+    elif lang == "hi" and not can_render_hindi():
+        warnings.append(
+            "Neither Pillow (no libraqm) nor ffmpeg (6.1 or newer needed) can "
+            "shape Devanagari on this machine, so the reel is captioned in "
+            "English rather than with misdrawn Hindi. Install ffmpeg 6.1+ for "
+            "Hindi captions."
+        )
+        lang = "en"
 
-    captions = script(
-        card,
-        lang=lang,
-        verification_code=passport.verification_code if passport else None,
-        years_experience=None,
-    )
+    def captions_for(lang: str) -> list[CaptionCard]:
+        return script(
+            card,
+            lang=lang,
+            verification_code=passport.verification_code if passport else None,
+            years_experience=None,
+        )
+
+    captions = captions_for(lang)
 
     photo_path = local_media_path(card.image_url)
     photo = None
@@ -457,8 +712,19 @@ def build(
         except (OSError, ImportError):
             warnings.append("Could not render the passport QR into the reel.")
 
-    video_path = directory / f"{card.listing_id}_{lang}.mp4"
+    # A voiced reel and a silent one are different files, so a reel built
+    # silent while offline is never served in place of a voiced one: the
+    # next request tries the voice again.
+    voiced = voice.enabled()
+
+    def video_path_for(lang: str, *, with_voice: bool = voiced) -> Path:
+        return directory / f"{card.listing_id}_{lang}{'_voice' if with_voice else ''}.mp4"
+
+    video_path = video_path_for(lang)
     if video_path.exists() and not force:
+        if voiced:
+            stem = f"{card.listing_id}_{lang}"
+            captions = _fit_to_voice(captions, _saved_narration(captions, directory, stem))
         return ReelResult(
             listing_id=card.listing_id,
             lang=lang,
@@ -467,9 +733,19 @@ def build(
             warnings=warnings,
         )
 
+    try:
+        frames = [compose_frame(c, photo=photo, lang=lang, qr=qr_image) for c in captions]
+    except ReelError as exc:
+        # Only shaped (Hindi) text goes through ffmpeg here, so English
+        # always composes.
+        warnings.append(f"{exc} The reel is captioned in English instead.")
+        lang = "en"
+        captions = captions_for(lang)
+        video_path = video_path_for(lang)
+        frames = [compose_frame(c, photo=photo, lang=lang, qr=qr_image) for c in captions]
+
     frame_paths: list[Path] = []
-    for i, caption in enumerate(captions):
-        frame = compose_frame(caption, photo=photo, lang=lang, qr=qr_image)
+    for i, frame in enumerate(frames):
         frame_path = directory / f"{card.listing_id}_{lang}_{i}.png"
         frame.save(frame_path, "PNG")
         frame_paths.append(frame_path)
@@ -491,11 +767,24 @@ def build(
         passport.making_clip_url if passport else None
     ) or local_media_path(f"/media/{card.listing_id}_making.mp4")
 
+    narration: list[Path | None] | None = None
+    if voiced:
+        try:
+            narration = _narrate(captions, lang, directory, f"{card.listing_id}_{lang}")
+            captions = _fit_to_voice(captions, narration)
+        except voice.VoiceError as exc:
+            warnings.append(
+                f"{exc} This reel is silent; opening it again will retry the voiceover."
+            )
+            narration = None
+            video_path = video_path_for(lang, with_voice=False)
+
     command = build_ffmpeg_command(
         [(p, c.duration) for p, c in zip(frame_paths, captions)],
         video_path,
         making_clip=making_clip,
         making_index=1 if making_clip else None,
+        narration=narration,
     )
 
     try:
@@ -538,6 +827,8 @@ def build(
 
 def poster(card: ProductCard, *, lang: str = "en", out_dir: Path | None = None) -> Path | None:
     """The first frame on its own — a share image for WhatsApp and OG tags."""
+    if lang == "hi" and not can_render_hindi():
+        lang = "en"
     captions = script(card, lang=lang)
     if not captions:
         return None
@@ -550,8 +841,13 @@ def poster(card: ProductCard, *, lang: str = "en", out_dir: Path | None = None) 
             photo = None
     directory = Path(out_dir or config.REELS_DIR)
     directory.mkdir(parents=True, exist_ok=True)
+    try:
+        frame = compose_frame(captions[0], photo=photo, lang=lang)
+    except ReelError:
+        lang = "en"
+        frame = compose_frame(script(card, lang=lang)[0], photo=photo, lang=lang)
     path = directory / f"{card.listing_id}_{lang}_poster.jpg"
-    compose_frame(captions[0], photo=photo, lang=lang).save(path, "JPEG", quality=88)
+    frame.save(path, "JPEG", quality=88)
     return path
 
 
@@ -561,6 +857,7 @@ __all__ = [
     "ReelResult",
     "build",
     "build_ffmpeg_command",
+    "can_render_hindi",
     "compose_frame",
     "ffmpeg_available",
     "find_font",

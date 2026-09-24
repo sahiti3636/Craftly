@@ -362,18 +362,20 @@ adapters.
 - [x] Browse / search / buy one piece — facets, price range, sort, basket, checkout
 - [x] B2B bulk order with quantity and deadline — and a refusal with a number when the cluster cannot meet it
 - [x] QR scan → passport page + reorder link, plus printable hang-tags
-- [x] 15s vertical reel from photo + making-clip + captions, with a storyboard fallback when ffmpeg is absent
+- [x] ~15s vertical reel from photo + making-clip + captions, with an English or Hindi voiceover, and a storyboard fallback when ffmpeg is absent
 
 Python 3.11+, FastAPI + Pydantic v2, Jinja2 templates and hand-written
 CSS with no build step, Pillow for reel frames, `qrcode` for passport QRs.
 `ffmpeg` is **optional** — it stitches reels into video, and everything
-works without it.
+works without it. The reel voiceover uses gTTS and needs the internet while
+a reel is built; offline, the reel is built silent and says so
+(`CRAFTLY_REEL_VOICE=off` turns it off).
 
 ```bash
 cd market
 uv sync
 uv run uvicorn app.main:app --reload --port 8100
-uv run pytest                       # 110 tests, no network, no ffmpeg
+uv run pytest                       # 120 tests, no network, no ffmpeg
 ```
 
 That is the whole setup — `market/seed/media/` is committed, so the shop
@@ -557,8 +559,8 @@ is the entire value of the passport. `/tag/{listing_id}` renders printable
 hang-tags; `/scan` lists every code with its QR so a judge can walk the
 mela journey without a printed tag in hand.
 
-**Reels — `/reel/{listing_id}`.** Fifteen seconds, 1080×1920, built from
-one photo and the listing. A reel is an argument in four beats: what it is
+**Reels — `/reel/{listing_id}`.** About fifteen seconds, 1080×1920, built
+from one photo and the listing. A reel is an argument in four beats: what it is
 and where a human made it; how it was made and how long that took; what it
 costs and how much reaches her; where to get it and the code that proves
 the claim. [`market/app/captions.py`](market/app/captions.py) builds that
@@ -573,11 +575,24 @@ a slow push and splices the making clip into beat two if one exists.
 **The storyboard fallback is not a consolation prize, it is the
 contract** — with no ffmpeg on the machine, the same frames come back as
 PNGs with a warning saying why. Degrade, don't crash, the same rule A2's
-pipeline holds itself to. No music: an unlicensed track is a takedown
-waiting to happen on exactly the marketplaces this project is trying to
-reach. Hindi captions need a Devanagari font (Nirmala UI on Windows, Noto
-Sans Devanagari elsewhere); with none, the reel is captioned in English
-and says so, because tofu boxes are worse than English.
+pipeline holds itself to.
+
+A voiceover (gTTS, as in A2's readback) reads one short line per beat in
+the reel's language — written to be heard, so amounts are said as
+"rupees" and the passport code is not read out. A beat whose line runs
+long is lengthened rather than cut off, so a voiced reel runs a few
+seconds past fifteen. Without the internet the reel is built silent, with
+a warning, and the next request tries the voice again. No music: an
+unlicensed track is a takedown waiting to happen on exactly the
+marketplaces this project is trying to reach.
+
+Hindi captions need a Devanagari font (Nirmala UI on Windows, Noto Sans
+Devanagari elsewhere) and something that can *shape* Devanagari — the ि
+matra is drawn before its consonant, clusters join into conjuncts.
+Pillow does that only with libraqm, which its Windows wheels lack, so
+there the Hindi lines are drawn by ffmpeg 6.1+ (HarfBuzz) instead. With
+neither, the reel is captioned in English and says so, because misdrawn
+Hindi is worse than English.
 
 **JSON API — `/api/...`**
 

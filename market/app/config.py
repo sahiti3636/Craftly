@@ -35,6 +35,10 @@ QR_DIR = Path(os.environ.get("CRAFTLY_QR_DIR", PROJECT_DIR / "qr"))
 
 FFMPEG = os.environ.get("CRAFTLY_FFMPEG", "ffmpeg")
 
+#: Reel voiceover: "gtts" (Google's TTS, needs internet while a reel is
+#: built) or "off" for silent reels.
+REEL_VOICE = os.environ.get("CRAFTLY_REEL_VOICE", "gtts").strip().lower()
+
 #: Baked into QR codes. Must be reachable from a phone on the same
 #: network — a QR pointing at localhost scans to nothing.
 PUBLIC_URL = os.environ.get("CRAFTLY_PUBLIC_URL", "http://localhost:8100").rstrip("/")

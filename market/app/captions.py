@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.money import rupees
+from app.money import group_inr, rupees
 from app.view import ProductCard
 
 REEL_SECONDS = 15.0
@@ -41,6 +41,9 @@ class CaptionCard:
     kicker: str | None = None
     #: "hook" and "close" are typographically loud; "fact" is quieter.
     style: str = "fact"
+    #: The voiceover line. Written to be heard, not read: shorter than the
+    #: caption, amounts said as "rupees", and no passport code read aloud.
+    spoken: str | None = None
 
     @property
     def end(self) -> float:
@@ -60,6 +63,11 @@ _STRINGS = {
         "verify": "Scan to meet the maker",
         "code": "Passport {code}",
         "years": "{years} years at this craft",
+        "say_title": "{title}, handmade by {name}.",
+        "say_hours": "{hours} of work, by hand.",
+        "say_hours_unknown": "Made entirely by hand.",
+        "say_price": "{price} rupees, and {amount} of it goes to {name}.",
+        "say_verify": "Scan the code to meet the maker.",
     },
     "hi": {
         "made_in": "{place} में बना",
@@ -73,6 +81,11 @@ _STRINGS = {
         "verify": "कारीगर से मिलने के लिए स्कैन करें",
         "code": "पासपोर्ट {code}",
         "years": "{years} साल से यही काम",
+        "say_title": "{title}, {name} के हाथों बना।",
+        "say_hours": "{hours} का हस्तनिर्मित काम।",
+        "say_hours_unknown": "पूरी तरह हाथ से बना।",
+        "say_price": "{price} रुपये, जिसमें से {amount} रुपये {name} को मिलते हैं।",
+        "say_verify": "कारीगर से मिलने के लिए कोड स्कैन करें।",
     },
 }
 
@@ -111,6 +124,7 @@ def script(
             sub=s["made_in"].format(place=place) if place else None,
             kicker=s["made_by"].format(name=card.artisan_name),
             style="hook",
+            spoken=s["say_title"].format(title=card.title(lang), name=card.artisan_name),
         )
     )
 
@@ -134,6 +148,7 @@ def script(
                 if years_experience
                 else None
             ),
+            spoken=s["say_hours"].format(hours=hours) if hours else s["say_hours_unknown"],
         )
     )
 
@@ -148,6 +163,13 @@ def script(
                 name=card.artisan_name.split()[0],
             ),
             kicker=s["floor"],
+            # Digits, not "₹": a voice reads "₹3,750" unpredictably and
+            # "3,750 rupees" the same way every time.
+            spoken=s["say_price"].format(
+                price=group_inr(quote.price_inr),
+                amount=group_inr(quote.artisan_take_home_inr),
+                name=card.artisan_name.split()[0],
+            ),
         )
     )
 
@@ -158,6 +180,7 @@ def script(
             headline=s["verify"],
             sub=s["code"].format(code=verification_code) if verification_code else None,
             style="close",
+            spoken=s["say_verify"],
         )
     )
 
@@ -182,6 +205,7 @@ def _fit(cards: list[CaptionCard], total: float) -> list[CaptionCard]:
                 sub=card.sub,
                 kicker=card.kicker,
                 style=card.style,
+                spoken=card.spoken,
             )
         )
         at += duration

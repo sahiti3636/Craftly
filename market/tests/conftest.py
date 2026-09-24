@@ -23,6 +23,8 @@ def isolated_adapters(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "ORDERS_PATH", tmp_path / "orders.jsonl")
     monkeypatch.setattr(config, "REELS_DIR", tmp_path / "reels")
     monkeypatch.setattr(config, "QR_DIR", tmp_path / "qr")
+    # Reels stay silent in tests: the voiceover calls Google over the network.
+    monkeypatch.setattr(config, "REEL_VOICE", "off")
     registry.reset()
     registry.override(order_impl=StubOrderSink(tmp_path / "orders.jsonl"))
     yield
