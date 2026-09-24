@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError
 
@@ -42,6 +42,9 @@ app = FastAPI(
 app.mount("/audio", StaticFiles(directory=str(AUDIO_DIR)), name="audio")
 app.mount("/images", StaticFiles(directory=str(IMAGES_DIR)), name="images")
 app.mount("/processed", StaticFiles(directory=str(PROCESSED_DIR)), name="processed")
+# A1: the Craftly Studio seller app. Served from here so it calls /listing/create and
+# /listing/confirm same-origin — no CORS setup, and it talks to this very pipeline.
+app.mount("/studio", StaticFiles(directory=str(STATIC_DIR / "studio"), html=True), name="studio")
 
 
 class ListingResponse(BaseModel):
@@ -243,9 +246,7 @@ async def demo_page() -> str:
     return (STATIC_DIR / "demo.html").read_text(encoding="utf-8")
 
 
-@app.get("/mobile-demo", response_class=HTMLResponse)
-async def mobile_demo_page() -> str:
-    """A1's phone-shaped demo UI (capture -> confirm -> orders), served
-    same-origin so it can call /listing/create and /listing/confirm
-    directly with no CORS setup needed."""
-    return (STATIC_DIR / "mobile_demo.html").read_text(encoding="utf-8")
+@app.get("/mobile-demo")
+async def mobile_demo_page() -> RedirectResponse:
+    """Kept so the old address still works — the seller app lives at /studio/."""
+    return RedirectResponse("/studio/", status_code=307)
