@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F1ECE1">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Craftly — mobile demo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,19 +23,17 @@
     --shadow: 0 18px 40px -20px rgba(42,36,32,.45);
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;height:100%;}
+  html,body{margin:0;height:100%;overscroll-behavior:none;}
   body{
-    background:var(--khadi);
-    background-image:
-      radial-gradient(circle at 15% 10%, rgba(184,84,46,.07), transparent 40%),
-      radial-gradient(circle at 85% 90%, rgba(43,65,89,.08), transparent 45%);
+    background:#e4ddcf;
     color:var(--ink);
     font-family:'IBM Plex Sans','Noto Sans Devanagari',sans-serif;
-    min-height:100%;
     display:flex;
     justify-content:center;
-    padding:36px 20px;
+    -webkit-tap-highlight-color:transparent;
+    -webkit-font-smoothing:antialiased;
   }
+  button,.tile,.card,.lang-row{ -webkit-user-select:none; user-select:none; touch-action:manipulation; }
   h1,h2,h3{ font-family:'Fraunces',serif; }
   button{ font-family:inherit; }
   img{ max-width:100%; }
@@ -39,44 +41,27 @@
   ::selection{ background:var(--clay-soft); }
   :focus-visible{ outline:2px solid var(--clay); outline-offset:2px; }
 
-  .layout{ width:100%; max-width:900px; display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:center; gap:36px; }
+  /* App shell: full-viewport on a phone; a centred phone-width column on a
+     desktop browser. No bezel, notch or side panel. */
+  .app{ width:100%; max-width:480px; height:100%; background:var(--khadi); position:relative; overflow:hidden; }
+  @media (min-width:520px){ .app{ box-shadow:0 0 0 1px var(--line), 0 24px 60px -24px rgba(42,36,32,.4); } }
+  .screen{ position:relative; width:100%; height:100%; display:flex; flex-direction:column; }
+  .screen-scroll{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; display:flex; flex-direction:column; scrollbar-width:none;
+    padding:calc(env(safe-area-inset-top, 0px) + 20px) 20px calc(env(safe-area-inset-bottom, 0px) + 24px); }
+  .screen-scroll::-webkit-scrollbar{ display:none; }
+  @media (prefers-reduced-motion:no-preference){ .screen-scroll{ animation:enter .18s ease-out; } }
+  @keyframes enter{ from{ opacity:0; transform:translateX(14px); } to{ opacity:1; transform:none; } }
 
-  .tag{
-    width:280px; background:var(--paper); border:1px solid var(--line); border-radius:18px;
-    padding:22px 22px 20px; box-shadow:var(--shadow); position:relative;
-  }
-  .tag-eyebrow{ font-size:11px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--clay); margin:0 0 6px; }
-  .tag h2{ font-size:21px; margin:0 0 10px; font-weight:600; }
-  .tag p{ font-size:13.5px; line-height:1.55; color:var(--ink-muted); margin:0 0 16px; }
-  .tag hr{ border:none; border-top:1px dashed var(--line); margin:16px 0; }
-  .status-row{ display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; margin-bottom:14px; }
+  .status-row{ display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; }
   .status-dot{ width:8px; height:8px; border-radius:50%; background:var(--ink-muted); flex:none; }
   .status-dot.ok{ background:var(--moss); }
   .status-dot.bad{ background:var(--madder); }
-  .spec-list{ list-style:none; margin:0 0 4px; padding:0; display:flex; flex-direction:column; gap:9px; }
-  .spec-list li{ font-size:12.5px; line-height:1.5; color:var(--ink-muted); display:flex; gap:8px; }
-  .spec-list b{ color:var(--ink); font-weight:600; }
-  .dot{ width:6px; height:6px; border-radius:50%; margin-top:6px; flex:none; }
-  .dot.real{ background:var(--moss); }
-  .dot.sim{ background:var(--turmeric); }
-  .switch-row{ display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-top:1px solid var(--line); }
-  .switch-label{ font-size:13.5px; font-weight:600; }
-  .switch-sub{ font-size:11.5px; color:var(--ink-muted); margin-top:2px; }
-  .switch{ position:relative; width:40px; height:23px; border-radius:999px; background:var(--line); border:none; cursor:pointer; flex:none; transition:background .15s; }
-  .switch::after{ content:""; position:absolute; top:2px; left:2px; width:19px; height:19px; border-radius:50%; background:var(--paper); box-shadow:0 1px 3px rgba(0,0,0,.3); transition:transform .15s; }
+  .switch{ position:relative; width:44px; height:26px; border-radius:999px; background:var(--line); border:none; cursor:pointer; flex:none; transition:background .15s; }
+  .switch::after{ content:""; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:var(--paper); box-shadow:0 1px 3px rgba(0,0,0,.3); transition:transform .15s; }
   .switch.on{ background:var(--clay); }
-  .switch.on::after{ transform:translateX(17px); }
-  .ghost-btn{ width:100%; margin-top:14px; background:transparent; border:1px solid var(--line); color:var(--ink-muted); font-size:12.5px; font-weight:600; padding:9px; border-radius:10px; cursor:pointer; }
-  .ghost-btn:hover{ border-color:var(--clay); color:var(--clay); }
-
-  .phone-wrap{ display:flex; flex-direction:column; align-items:center; gap:12px; }
-  .phone{ width:378px; max-width:92vw; height:760px; background:var(--ink); border-radius:46px; padding:14px; box-shadow:var(--shadow); position:relative; }
-  .phone::before{ content:""; position:absolute; top:14px; left:50%; transform:translateX(-50%); width:90px; height:22px; border-radius:14px; background:var(--ink); z-index:5; }
-  .screen{ position:relative; width:100%; height:100%; background:var(--khadi); border-radius:34px; overflow:hidden; display:flex; flex-direction:column; }
-  .screen-scroll{ flex:1; overflow-y:auto; padding:34px 20px 24px; display:flex; flex-direction:column; scrollbar-width:none; }
-  .screen-scroll::-webkit-scrollbar{ display:none; }
-  .homebar{ position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:120px; height:4px; border-radius:3px; background:rgba(255,255,255,.25); }
-  .caption{ font-size:12px; color:var(--ink-muted); text-align:center; max-width:378px; }
+  .switch.on::after{ transform:translateX(18px); }
+  .sub{ font-size:12px; color:var(--ink-muted); margin-top:2px; font-weight:400; }
+  .section-label{ font-size:12px; font-weight:700; color:var(--ink-muted); margin:18px 0 8px; letter-spacing:.04em; text-transform:uppercase; }
 
   .row{ display:flex; align-items:center; gap:10px; }
   .between{ justify-content:space-between; }
@@ -145,40 +130,17 @@
   .spinner{ width:16px; height:16px; border-radius:50%; border:2px solid rgba(255,255,255,.5); border-top-color:#fff; animation:spin .7s linear infinite; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
   .toast{
-    position:absolute; bottom:34px; left:16px; right:16px; background:var(--ink); color:var(--paper);
+    position:absolute; bottom:calc(env(safe-area-inset-bottom, 0px) + 24px); left:16px; right:16px; background:var(--ink); color:var(--paper);
     padding:12px 14px; border-radius:12px; font-size:13px; text-align:center; box-shadow:var(--shadow);
     z-index:20; opacity:0; transform:translateY(8px); transition:opacity .2s, transform .2s; pointer-events:none;
   }
   .toast.show{ opacity:1; transform:translateY(0); }
 
-  @media (max-width:640px){ .layout{ flex-direction:column-reverse; align-items:center; } .tag{ width:100%; max-width:378px; } }
 </style>
 </head>
 <body>
 
-<div class="layout">
-  <div class="phone-wrap">
-    <div class="phone"><div class="screen" id="screen"></div></div>
-    <div class="caption">Craftly A1 &mdash; talking to this same server's real <code>/listing/create</code> and <code>/listing/confirm</code> endpoints.</div>
-  </div>
-
-  <aside class="tag">
-    <p class="tag-eyebrow">Craftly &middot; mobile demo</p>
-    <h2>Live integration</h2>
-    <div class="status-row"><span class="status-dot" id="statusDot"></span><span id="statusText">Checking backend…</span></div>
-    <p>Served by this FastAPI app (see <code>app/main.py</code>'s <code>/mobile-demo</code> route), so every request below is a real same-origin call &mdash; nothing here is mocked.</p>
-    <hr>
-    <ul class="spec-list">
-      <li><span class="dot real"></span><span><b>Real:</b> camera capture, mic recording, and the full <code>/listing/create</code> &rarr; <code>/listing/confirm</code> round trip against this pipeline.</span></li>
-      <li><span class="dot sim"></span><span><b>Local only:</b> Orders and My Listings &mdash; there's no order engine or "list my listings" endpoint yet, so those stay in this browser's storage.</span></li>
-    </ul>
-    <div class="switch-row">
-      <div><div class="switch-label">Simulate offline</div><div class="switch-sub">Queue captures instead of uploading now</div></div>
-      <button class="switch" id="offlineSwitch" onclick="toggleOffline()"></button>
-    </div>
-    <button class="ghost-btn" onclick="resetDemo()">Reset local data</button>
-  </aside>
-</div>
+<div class="app"><div class="screen" id="screen"></div></div>
 
 <script>
 (function(){
@@ -261,7 +223,6 @@
   function toggleOffline(){
     state.profile.offlineSim = !state.profile.offlineSim;
     persist();
-    document.getElementById("offlineSwitch").classList.toggle("on", state.profile.offlineSim);
     if (!state.profile.offlineSim) syncPending();
     render();
   }
@@ -270,19 +231,15 @@
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
     state = defaultState();
     nav = [{name:"onboarding", params:{}}];
-    document.getElementById("offlineSwitch").classList.remove("on");
     render();
   }
 
   /* ---------------- real backend calls ---------------- */
+  var health = "checking";
   function checkHealth(){
-    fetch("/health").then(function(r){ return r.ok ? r.json() : Promise.reject(); }).then(function(){
-      document.getElementById("statusDot").className = "status-dot ok";
-      document.getElementById("statusText").textContent = "Backend connected";
-    }).catch(function(){
-      document.getElementById("statusDot").className = "status-dot bad";
-      document.getElementById("statusText").textContent = "Backend unreachable";
-    });
+    fetch("/health").then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+      .then(function(){ health = "ok"; }).catch(function(){ health = "bad"; })
+      .then(function(){ if (current().name === "settings") render(); });
   }
 
   function apiCreateListing(artisanId, languageHint, photoFile, audioBlob){
@@ -398,7 +355,7 @@
     var screen = document.getElementById("screen");
     try{
       var fn = SCREENS[route.name];
-      screen.innerHTML = fn(route.params) + '<div class="toast"></div><div class="homebar"></div>';
+      screen.innerHTML = fn(route.params) + '<div class="toast"></div>';
       bind(route.name, route.params);
     }catch(err){
       screen.innerHTML = '<div class="screen-scroll" style="justify-content:center;align-items:center;text-align:center;gap:14px;">' +
@@ -546,9 +503,16 @@
       return '<div class="lang-row' + (sel?' sel':'') + '" data-lang="' + l.code + '" style="padding:11px 14px;"><span class="name" style="font-size:14px;">' + l.label + '</span>' + (sel?'<span class="check">&check;</span>':'') + '</div>';
     }).join('');
     return '<div class="screen-scroll">' + header(t('settings'), true) +
-      '<div style="font-size:12px;font-weight:700;color:var(--ink-muted);margin-bottom:8px;">' + t('language') + '</div>' + langs +
+      '<div class="section-label" style="margin-top:0">' + t('language') + '</div>' + langs +
       '<div class="card row between" style="margin-top:14px;"><span style="font-weight:600;font-size:14px;">' + t('aiCall') + '</span>' +
-      '<button class="switch' + (state.profile.aiCallConsent?' on':'') + '" id="consentSwitch2"></button></div></div>';
+      '<button class="switch' + (state.profile.aiCallConsent?' on':'') + '" id="consentSwitch2"></button></div>' +
+      '<div class="section-label">Demo</div>' +
+      '<div class="card"><div class="status-row"><span class="status-dot ' + (health === "ok" ? "ok" : health === "bad" ? "bad" : "") + '"></span>' +
+        (health === "ok" ? "Backend connected" : health === "bad" ? "Backend unreachable" : "Checking backend…") + '</div>' +
+        '<div class="sub">Every request is a real same-origin call to <code>/listing/create</code> and <code>/listing/confirm</code>. Orders and My Listings stay in this browser — no order engine or listings endpoint yet.</div></div>' +
+      '<div class="card row between"><div><div style="font-weight:600;font-size:14px;">Simulate offline</div><div class="sub">Queue captures instead of uploading now</div></div>' +
+        '<button class="switch' + (state.profile.offlineSim?' on':'') + '" id="offlineSwitch"></button></div>' +
+      '<button class="btn outline small" id="resetBtn" style="margin-top:4px;">Reset local data</button></div>';
   };
 
   /* ---------------- bindings ---------------- */
@@ -567,6 +531,8 @@
       });
       var cs2 = document.getElementById("consentSwitch2");
       if (cs2) cs2.onclick = function(){ state.profile.aiCallConsent = !state.profile.aiCallConsent; persist(); render(); };
+      document.getElementById("offlineSwitch").onclick = toggleOffline;
+      document.getElementById("resetBtn").onclick = resetDemo;
     }
     if (name === "queue"){
       Array.prototype.forEach.call(document.querySelectorAll("[data-item]"), function(card){
@@ -697,7 +663,6 @@
   window.toggleOffline = toggleOffline;
   window.resetDemo = resetDemo;
 
-  document.getElementById("offlineSwitch").classList.toggle("on", state.profile.offlineSim);
   checkHealth();
   render();
 })();

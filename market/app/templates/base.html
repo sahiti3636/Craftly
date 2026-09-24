@@ -30,7 +30,7 @@
       <small>{{ 'handmade · traceable · fairly priced' if lang == 'en' else 'हस्तनिर्मित · प्रमाणित · न्यायसंगत' }}</small>
     </a>
 
-    <form class="searchbar" action="/" method="get" role="search">
+    <form class="searchbar" action="/classic" method="get" role="search">
       <input type="text" name="q" value="{{ request.query_params.get('q', '') }}"
              placeholder="{{ 'Search a craft, a material, a village…' if lang == 'en' else 'शिल्प, सामग्री या गाँव खोजें…' }}"
              aria-label="Search">

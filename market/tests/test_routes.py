@@ -18,21 +18,28 @@ def test_health(client):
     assert client.get("/health").json()["status"] == "ok"
 
 
+def test_home_is_the_phone_style_app(client):
+    for path in ("/", "/app"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert 'class="app"' in response.text
+
+
 def test_browse_lists_the_catalogue(client):
-    response = client.get("/")
+    response = client.get("/classic")
     assert response.status_code == 200
     assert "Ajrakh" in response.text
 
 
 def test_browse_search_narrows(client):
-    response = client.get("/?q=dhokra")
+    response = client.get("/classic?q=dhokra")
     assert response.status_code == 200
     assert "Dhokra" in response.text
     assert "Ajrakh Dupatta" not in response.text
 
 
 def test_browse_facet_link_filters(client):
-    response = client.get("/?category=textiles")
+    response = client.get("/classic?category=textiles")
     assert response.status_code == 200
     assert "Pattachitra" not in response.text
 

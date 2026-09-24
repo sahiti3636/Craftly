@@ -56,7 +56,7 @@ def _query_from_request(request: Request) -> SearchQuery:
     )
 
 
-@router.get("/")
+@router.get("/classic")
 def browse(request: Request):
     query = _query_from_request(request)
     result = run(deps.cards(Channel.OWN_STORE), query)

@@ -11,7 +11,7 @@ each surface is for.
 from __future__ import annotations
 
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import config, deps
@@ -48,6 +48,15 @@ def platform_down(request: Request, exc: PlatformUnavailable):
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "adapters": config.ADAPTERS}
+
+
+@app.get("/", response_class=HTMLResponse)
+@app.get("/app", response_class=HTMLResponse)
+def buyer_app() -> str:
+    """The buyer home: the phone-style app. Same catalogue, same /cart and
+    /checkout, driven through the JSON API (see routes/api.py). The older
+    server-rendered storefront is still at /classic."""
+    return (config.PACKAGE_DIR / "static" / "buyer_app.html").read_text(encoding="utf-8")
 
 
 @app.get("/lang/{code}")
