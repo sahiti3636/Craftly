@@ -16,13 +16,25 @@ Public API:
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 
 from app.lang import LanguageTables, get_tables
 
-_TOKEN_RE = re.compile(r"₹|\w+")
+# \w alone splits Devanagari at every vowel sign ("दो" -> "द"), so the
+# Devanagari block is matched explicitly — minus the dandas (।॥), which end
+# a sentence rather than belong to a word.
+_TOKEN_RE = re.compile(r"₹|[\wऀ-ॣ०-ॿ]+")
 
 HOURS_PER_WORKING_DAY = 8
+
+
+def _fold_devanagari(text: str) -> str:
+    """One spelling per Devanagari word, as the tables in app/lang/ store
+    it: nukta dropped (हज़ार -> हजार) and chandrabindu written as
+    anusvara (पाँच -> पांच). Whisper uses both forms of each."""
+    text = unicodedata.normalize("NFD", text)
+    return unicodedata.normalize("NFC", text.replace("़", "").replace("ँ", "ं"))
 
 
 @dataclass(frozen=True)
@@ -33,7 +45,7 @@ class _Token:
 
     @property
     def lower(self) -> str:
-        return self.text.lower()
+        return _fold_devanagari(self.text.lower())
 
 
 def _tokenize(text: str) -> list[_Token]:

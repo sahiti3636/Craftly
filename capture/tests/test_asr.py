@@ -93,3 +93,69 @@ def test_accepts_m4a(tone_wav_factory, tmp_path):
     )
     result = transcribe(m4a_clip, language_hint="en")
     assert result["duration_sec"] >= 1.5
+
+
+def test_speech_detected_as_urdu_is_transcribed_as_hindi(tmp_path, monkeypatch):
+    """Whisper often labels spoken Hindi "ur" and writes Urdu script, which
+    nothing downstream reads. With no hint, it is transcribed again as Hindi."""
+    from types import SimpleNamespace
+
+    import app.asr as asr_module
+    from tests.conftest import make_tone_wav
+
+    calls = []
+
+    class FakeModel:
+        def transcribe(self, path, language=None, task=None):
+            calls.append(language)
+            text = "दो सौ रुपये" if language == "hi" else "دو سو روپے"
+            return [SimpleNamespace(text=text)], SimpleNamespace(
+                language="ur", language_probability=0.6, all_language_probs=[("ur", 0.6), ("hi", 0.3), ("en", 0.1)]
+            )
+
+    monkeypatch.setattr(asr_module, "_get_model", lambda: FakeModel())
+    clip = make_tone_wav(tmp_path / "clip.wav", duration_sec=2.0)
+    result = asr_module.transcribe(clip)
+    assert calls == [None, "hi"]
+    assert result["detected_language"] == "hi"
+    assert result["text"] == "दो सौ रुपये"
+
+
+def test_an_explicit_hint_is_never_second_guessed(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    import app.asr as asr_module
+    from tests.conftest import make_tone_wav
+
+    calls = []
+
+    class FakeModel:
+        def transcribe(self, path, language=None, task=None):
+            calls.append(language)
+            return [SimpleNamespace(text="x")], SimpleNamespace(language=language, language_probability=1.0)
+
+    monkeypatch.setattr(asr_module, "_get_model", lambda: FakeModel())
+    asr_module.transcribe(make_tone_wav(tmp_path / "clip.wav", duration_sec=2.0), language_hint="ur")
+    assert calls == ["ur"]
+
+
+def test_detection_only_picks_a_language_artisans_speak(tmp_path, monkeypatch):
+    """A muffled English clip once came back as Norwegian ("nn")."""
+    from types import SimpleNamespace
+
+    import app.asr as asr_module
+    from tests.conftest import make_tone_wav
+
+    calls = []
+
+    class FakeModel:
+        def transcribe(self, path, language=None, task=None):
+            calls.append(language)
+            info = SimpleNamespace(language="nn", language_probability=0.4,
+                                   all_language_probs=[("nn", 0.4), ("en", 0.35), ("no", 0.2), ("hi", 0.05)])
+            return [SimpleNamespace(text="material cost two hundred rupees")], info
+
+    monkeypatch.setattr(asr_module, "_get_model", lambda: FakeModel())
+    result = asr_module.transcribe(make_tone_wav(tmp_path / "clip.wav", duration_sec=2.0))
+    assert calls == [None, "en"]
+    assert result["detected_language"] == "en"

@@ -25,6 +25,7 @@ endpoint that will enumerate the buyer list for anyone who asks.
 
 from __future__ import annotations
 
+import hmac
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, Header, HTTPException, status
@@ -205,6 +206,24 @@ def revoke_token(db: Session, plaintext: str) -> bool:
     return True
 
 
+#: The one service account: C2, acting with CRAFTLY_SERVICE_TOKEN.
+SERVICE_ACCOUNT_ID = "acc_service_integrations"
+
+
+def service_account(db: Session) -> Account:
+    """The account a CRAFTLY_SERVICE_TOKEN request acts as, made on first use.
+
+    A real Account row rather than a special case, so an order moved along
+    by the courier integration records who moved it like any other change.
+    """
+    account = db.get(Account, SERVICE_ACCOUNT_ID)
+    if account is None:
+        account = Account(account_id=SERVICE_ACCOUNT_ID, role="service", name="Integrations (C2)", language="en")
+        db.add(account)
+        db.flush()
+    return account
+
+
 def account_for_token(db: Session, plaintext: str) -> Account | None:
     row = db.get(Token, security.token_fingerprint(plaintext))
     if row is None or row.revoked_at is not None:
@@ -239,6 +258,8 @@ def current_account_optional(
     token = _bearer(authorization)
     if token is None:
         return None
+    if config.SERVICE_TOKEN and hmac.compare_digest(token, config.SERVICE_TOKEN):
+        return service_account(db)
     return account_for_token(db, token)
 
 
@@ -247,6 +268,12 @@ def current_account(
 ) -> Account:
     if account is None:
         raise AuthError("Sign in to do that.")
+    return account
+
+
+def current_service(account: Account = Depends(current_account)) -> Account:
+    if account.role != "service":
+        raise AuthError("That is a service action.", status.HTTP_403_FORBIDDEN)
     return account
 
 

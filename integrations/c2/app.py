@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 
-from c2 import c1_client, channels, courier, demand, pipeline, voice
+from c2 import b2_client, c1_client, channels, courier, demand, pipeline, voice
 from c2.models import DemandAlert, Order
 
 app = FastAPI(title="Craftly C2 - integrations (simulated)", version="0.1.0")
@@ -21,11 +21,12 @@ app = FastAPI(title="Craftly C2 - integrations (simulated)", version="0.1.0")
 _PAGE = Path(__file__).resolve().parent / "console.html"
 
 
-def _order(order_id: str) -> Order:
-    orders, _ = c1_client.orders_or_sample()
+def _order(order_id: str) -> tuple[Order, bool]:
+    """The order, and whether it lives in B2."""
+    orders, source = c1_client.orders_or_sample()
     for order in orders:
         if order.order_id == order_id:
-            return order
+            return order, source == c1_client.SRC_B2
     raise HTTPException(404, f"No such order: {order_id}")
 
 
@@ -40,7 +41,13 @@ def health() -> dict[str, Any]:
         _, source = c1_client.get_product(c1_client.all_listing_ids()[0], "amazon")
     except (KeyError, IndexError):
         source = "no_catalogue"
-    return {"ok": True, "c1_source": source, "c1_url": c1_client.config.C1_URL, "channels": sorted(channels.ADAPTERS)}
+    return {
+        "ok": True,
+        "c1_source": source,
+        "c1_url": c1_client.config.C1_URL,
+        "orders_from": "b2" if b2_client.orders() is not None else ("unavailable" if b2_client.enabled() else "c1_log"),
+        "channels": sorted(channels.ADAPTERS),
+    }
 
 
 @app.get("/api/listings")
@@ -60,6 +67,7 @@ def orders() -> dict[str, Any]:
         "orders": [
             {
                 "order_id": o.order_id,
+                "status": o.status,
                 "kind": o.kind,
                 "buyer": o.buyer.name,
                 "city": o.buyer.city,
@@ -92,7 +100,11 @@ def push_all(channel: str, limit: int | None = None):
 
 @app.post("/api/orders/{order_id}/confirm")
 def confirm_order(order_id: str) -> dict[str, Any]:
-    shipment, owed, calls = pipeline.confirm(_order(order_id))
+    order, platform = _order(order_id)
+    try:
+        shipment, owed, calls = pipeline.confirm(order, platform=platform)
+    except pipeline.NotReady as exc:
+        raise HTTPException(409, str(exc)) from exc
     return {
         "shipment": shipment,
         "payouts": owed,
@@ -103,9 +115,12 @@ def confirm_order(order_id: str) -> dict[str, Any]:
 
 @app.post("/api/orders/{order_id}/deliver")
 def deliver_order(order_id: str) -> dict[str, Any]:
-    order = _order(order_id)
-    calls = pipeline.deliver(order)
-    return {"order_id": order_id, "status": "delivered", "simulated": True, "calls": calls}
+    order, platform = _order(order_id)
+    try:
+        calls = pipeline.deliver(order, platform=platform)
+    except pipeline.NotReady as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return {"order_id": order_id, "status": "delivered", "simulated": True, "settled_in_b2": platform, "calls": calls}
 
 
 @app.get("/api/demand-alert", response_model=DemandAlert)

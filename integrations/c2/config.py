@@ -18,7 +18,14 @@ PROJECT_DIR = PACKAGE_DIR.parent
 REPO_DIR = PROJECT_DIR.parent
 MARKET_DIR = REPO_DIR / "market"
 
-C1_URL = os.environ.get("CRAFTLY_C1_URL", "http://localhost:8100").rstrip("/")
+# 127.0.0.1, not localhost: on Windows "localhost" tries IPv6 first and every
+# service-to-service call waits ~2s for it to fail.
+C1_URL = os.environ.get("CRAFTLY_C1_URL", "http://127.0.0.1:8100").rstrip("/")
+
+#: B2 (the platform). With SERVICE_TOKEN set to the same value as B2's,
+#: orders come from B2 and delivery settles payouts there; see b2_client.py.
+PLATFORM_URL = os.environ.get("CRAFTLY_PLATFORM_URL", "http://127.0.0.1:8200").rstrip("/")
+SERVICE_TOKEN = os.environ.get("CRAFTLY_SERVICE_TOKEN", "")
 SEED_DIR = Path(os.environ.get("CRAFTLY_SEED_DIR", MARKET_DIR / "seed"))
 ORDERS_PATH = Path(os.environ.get("CRAFTLY_ORDERS_PATH", MARKET_DIR / "orders.jsonl"))
 LOG_DIR = Path(os.environ.get("CRAFTLY_C2_LOG_DIR", PROJECT_DIR / "logs"))

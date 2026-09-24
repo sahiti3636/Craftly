@@ -5,6 +5,9 @@ One environment variable, `CRAFTLY_ADAPTERS`:
     stub  (default)  seed JSON, placeholder price engine, JSONL order log
     http             the real B1 and B2 services
 
+`CRAFTLY_PRICE_ADAPTERS` overrides it for prices and bulk splits alone, so
+the shop can run off B2 with the placeholder price engine while B1 is down.
+
 Everything is a lazily-built module-level singleton. `reset()` drops them,
 which is how tests swap in a fake without touching the routes.
 """
@@ -38,7 +41,7 @@ def catalog() -> CatalogSource:
 def prices() -> PriceEngine:
     global _prices
     if _prices is None:
-        if config.using_stubs():
+        if config.using_stub_prices():
             from app.adapters.stub_price import StubPriceEngine
 
             _prices = StubPriceEngine()
@@ -52,7 +55,7 @@ def prices() -> PriceEngine:
 def order_engine() -> OrderEngine:
     global _engine
     if _engine is None:
-        if config.using_stubs():
+        if config.using_stub_prices():
             from app.adapters.stub_engine import StubOrderEngine
 
             _engine = StubOrderEngine(catalog(), prices())

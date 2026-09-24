@@ -21,6 +21,7 @@ engines/models/
 # seed/media/ is NOT ignored: it is committed so that a fresh clone has a
 # shop that looks like a shop without anyone remembering a setup step.
 market/reels/
+market/media_cache/
 market/qr/
 market/orders.jsonl
 market/*.log

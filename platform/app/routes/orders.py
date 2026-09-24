@@ -15,7 +15,7 @@ rupee.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app import auth, config, orders, payments
@@ -50,6 +50,19 @@ def place_order(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     db.commit()
     return orders.to_contract(order)
+
+
+@router.get("/orders", response_model=list[OrderOut])
+def list_orders(
+    status: OrderStatus | None = None,
+    limit: int = Query(200, ge=1, le=1000),
+    _: Account = Depends(auth.current_service),
+    db: Session = Depends(session),
+) -> list[OrderOut]:
+    """Every order, newest first. For C2, which books the courier and calls
+    the artisan for each one. Service token only: this is every buyer's
+    name, phone and address."""
+    return [orders.to_contract(row) for row in orders.recent(db, status, limit)]
 
 
 @router.get("/orders/{order_id}", response_model=OrderOut)

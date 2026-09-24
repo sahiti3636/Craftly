@@ -10,6 +10,8 @@ malformed/ambiguous numeric input (comma-grouped digits) that must fail
 safe (empty result) rather than silently return a wrong value.
 """
 
+import pytest
+
 from app.numbers import extract_duration, extract_money
 
 # ---------------------------------------------------------------------------
@@ -463,3 +465,38 @@ def test_money_no_numbers_at_all():
 
 def test_duration_no_numbers_at_all():
     assert extract_duration("bahut sundar kaam hai", "hi") == []
+
+
+# ---------------------------------------------------------------------------
+# Devanagari — how Whisper writes Hindi speech
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text,money,hours",
+    [
+        ("सामान की लागत दो सौ रुपये है और इसे बनाने में पाँच घंटे लगे।", 200, 5.0),
+        ("लागत डेढ़ हज़ार रुपये, साढ़े तीन घंटे", 1500, 3.5),
+        ("पांच सौ रुपए का सामान, बारह घंटे", 500, 12.0),
+        ("₹२०० और ४ घंटे", 200, 4.0),
+        ("सवा सौ रुपये, ढाई घंटे", 125, 2.5),
+    ],
+)
+def test_devanagari_money_and_hours(text, money, hours):
+    assert extract_money(text, "hi")[0]["value_inr"] == money
+    assert extract_duration(text, "hi")[0]["hours"] == hours
+
+
+def test_devanagari_words_are_not_split_at_vowel_signs():
+    """\w alone split "दो" into "द" and read no number at all."""
+    assert extract_money("दो सौ रुपये", "hi")[0]["value_inr"] == 200
+
+
+def test_devanagari_tables_are_stored_folded():
+    """Keys must match what _Token.lower produces, or they never match."""
+    from app.lang import hi
+    from app.numbers import _fold_devanagari
+
+    tables = (hi.NUMBER_WORDS, hi.SCALE_WORDS, hi.FRACTION_PREFIXES, hi.STANDALONE_FRACTIONS,
+              hi.DURATION_UNITS, hi.CURRENCY_MARKERS)
+    assert [k for table in tables for k in table if _fold_devanagari(k) != k] == []

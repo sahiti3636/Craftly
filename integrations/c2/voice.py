@@ -17,8 +17,12 @@ Rules carried over from the rest of the project:
   Hindi, else English if she speaks it, else Hindi - and the log records
   the language actually used, so a Bengali-only artisan being called in
   Hindi shows up as a gap rather than being hidden.
-* **Artisan phone numbers are simulated.** C1's seed has none (B2 owns
-  that record), so a stable fake number is derived from the artisan id.
+* **No consent, no call.** When C2 is connected to B2, the artisan's
+  phone, language and AI-call consent come from her Craftly Studio
+  account. Without consent (or without an account at all) the call is not
+  placed; the log records that it was skipped and why.
+* **Artisan phone numbers are otherwise simulated.** Without B2, C1's seed
+  has none, so a stable fake number is derived from the artisan id.
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ from __future__ import annotations
 import hashlib
 from datetime import date, datetime, timezone
 
-from c2 import c1_client
+from c2 import b2_client, c1_client
 from c2.fmt import inr
 from c2.logs import append_jsonl
 from c2.models import CallLog, Order, Payout, Shipment
@@ -98,6 +102,12 @@ def script(event: str, order: Order, payout: Payout, shipment: Shipment | None, 
                 f"{shipment.pickup_window} के बीच तय हुआ है। पैकेट पर यह नंबर लिखें: {stop.waybill}। "
                 f"कूरियर: {shipment.courier}।"
             )
+        if event == "payment_credited" and payout.payout_status == "blocked":
+            return (
+                f"{head} ऑर्डर {order.order_id} का सामान पहुँच गया है।"
+                + _money_hi(payout, "आपके {amt} बाकी हैं,")
+                + " पर आपका UPI नंबर हमारे पास नहीं है। कृपया क्राफ्टली स्टूडियो में UPI नंबर जोड़ें, फिर भुगतान भेज दिया जाएगा।"
+            )
         if event == "payment_credited":
             return (
                 f"{head} बधाई हो! ऑर्डर {order.order_id} का सामान पहुँच गया है"
@@ -120,6 +130,12 @@ def script(event: str, order: Order, payout: Payout, shipment: Shipment | None, 
                 f"{_en_date(shipment.pickup_date)}, between {shipment.pickup_window}. "
                 f"Write this number on the parcel: {stop.waybill}. Courier: {shipment.courier}."
             )
+        if event == "payment_credited" and payout.payout_status == "blocked":
+            owed = "" if payout.amount_inr is None else f" {inr(payout.amount_inr)} is owed to you, but"
+            return (
+                f"{head} Order {order.order_id} has been delivered.{owed} we do not have a UPI ID "
+                "for you yet. Please add it in Craftly Studio and the payment will be sent."
+            )
         if event == "payment_credited":
             money = (
                 f" and {inr(payout.amount_inr)} has been credited to your account."
@@ -135,25 +151,37 @@ def place_call(
 ) -> CallLog:
     if event not in EVENTS:
         raise ValueError(f"unknown call event '{event}'; use one of {EVENTS}")
+    contact = b2_client.contact(payout.artisan_id)
     lang = pick_language(payout.languages)
+    if contact and contact.get("language") in ("hi", "en"):
+        lang = contact["language"]
     text = script(event, order, payout, shipment, lang)
     text_en = text if lang == "en" else script(event, order, payout, shipment, "en")
     call_id = "call_" + hashlib.sha1(f"{event}|{order.order_id}|{payout.artisan_id}".encode()).hexdigest()[:10]
     already = next((c for c in _CALLS if c.call_id == call_id), None)
     if already is not None:  # idempotent, like the courier booking
         return already
+    consented = contact is None or bool(contact.get("ai_call_consent"))
+    if contact is None:
+        outcome = "ACKNOWLEDGED (pressed 1)" if event == "order_confirmed" else "MESSAGE_DELIVERED"
+    elif not contact.get("has_account"):
+        outcome = "NOT_CALLED (no Craftly Studio account, so no phone or consent on file)"
+    elif not consented:
+        outcome = "NOT_CALLED (AI calls are switched off in her Craftly Studio settings)"
+    else:
+        outcome = "ACKNOWLEDGED (pressed 1)" if event == "order_confirmed" else "MESSAGE_DELIVERED"
     log = CallLog(
         call_id=call_id,
         event=event,
         order_id=order.order_id,
         artisan_id=payout.artisan_id,
         artisan_name=payout.artisan_name,
-        to_phone=_phone(payout.artisan_id),
+        to_phone=(contact or {}).get("phone") or _phone(payout.artisan_id),
         language=lang,
         script=text,
         script_en=text_en,
-        duration_sec=max(8, len(text_en) // 14),
-        outcome="ACKNOWLEDGED (pressed 1)" if event == "order_confirmed" else "MESSAGE_DELIVERED",
+        duration_sec=max(8, len(text_en) // 14) if consented else 0,
+        outcome=outcome,
         at=at or datetime.now(timezone.utc),
     )
     _CALLS.append(log)

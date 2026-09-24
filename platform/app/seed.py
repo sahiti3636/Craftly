@@ -32,7 +32,7 @@ import argparse
 import json
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app import auth, catalog, config, passports
 from app.db import create_all, engine, session_scope
@@ -185,7 +185,17 @@ def _demo_account(db) -> None:
     """One artisan who can log in, attached to a real seeded maker."""
     if auth.get_account_by_phone(db, DEMO_ARTISAN_PHONE) is not None:
         return
-    artisan = db.scalar(select(Artisan).order_by(Artisan.artisan_id).limit(1))
+    # The maker with the most live listings, so a demo sign-in opens onto
+    # real work (My Listings, passports, orders buyers place on them) rather
+    # than an empty studio. Ties go to the lowest id, so it is deterministic.
+    artisan = db.scalar(
+        select(Artisan)
+        .join(Listing, Listing.artisan_id == Artisan.artisan_id)
+        .where(Listing.published.is_(True))
+        .group_by(Artisan.artisan_id)
+        .order_by(func.count(Listing.listing_id).desc(), Artisan.artisan_id)
+        .limit(1)
+    ) or db.scalar(select(Artisan).order_by(Artisan.artisan_id).limit(1))
     if artisan is None:
         return
     auth.create_artisan_account(

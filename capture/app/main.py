@@ -4,11 +4,12 @@ import tempfile
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError
 
+from app import platform_client
 from app.asr import (
     AudioConversionError,
     AudioDurationError,
@@ -174,6 +175,127 @@ async def confirm_listing_endpoint(request: Request, body: ConfirmRequest) -> Li
     save_draft(updated_listing, updated_fields, audio_url)
 
     return ListingResponse(listing=updated_listing, summary_audio_url=audio_url)
+
+
+# -- B2 (platform): sign-in, publishing, orders ------------------------------
+#
+# A1's Studio is served from this service, so it reaches B2 through these
+# routes rather than cross-origin. They forward to B2 and pass its answer
+# (or its refusal) back; see app/platform_client.py.
+
+
+class CodeRequest(BaseModel):
+    phone: str
+    name: str | None = None
+    language: str = "hi"
+
+
+class CodeVerify(BaseModel):
+    challenge_id: str
+    code: str
+
+
+class PublishRequest(BaseModel):
+    listing_id: str
+
+
+class StatusRequest(BaseModel):
+    status: str
+
+
+def _bearer(authorization: str | None) -> str:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Sign in with your phone number first.")
+    return authorization.split(" ", 1)[1]
+
+
+def _via_platform(call, *args):
+    try:
+        return call(*args)
+    except platform_client.PlatformError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+
+
+@app.post("/artisan/login")
+def artisan_login(body: CodeRequest) -> dict:
+    """Send a one-time code to the artisan's phone (B2 issues it)."""
+    return _via_platform(platform_client.request_code, body.phone, body.name, body.language)
+
+
+@app.post("/artisan/verify")
+def artisan_verify(body: CodeVerify) -> dict:
+    return _via_platform(platform_client.verify_code, body.challenge_id, body.code)
+
+
+@app.post("/listing/publish")
+def publish_listing(body: PublishRequest, authorization: str | None = Header(None)) -> dict:
+    """Put a confirmed draft live on B2: photos uploaded, passport minted.
+
+    Only a listing the artisan has confirmed goes out — the readback loop
+    exists so nothing she has not heard reaches a buyer.
+    """
+    token = _bearer(authorization)
+    record = get_draft(body.listing_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"No draft listing found for id {body.listing_id!r}")
+    if record.listing.needs_confirmation:
+        raise HTTPException(
+            status_code=409,
+            detail="Confirm the listing before publishing: "
+            + ", ".join(record.listing.needs_confirmation),
+        )
+    served = {"images": IMAGES_DIR, "processed": PROCESSED_DIR}
+    return _via_platform(platform_client.publish, record.listing, token, served)
+
+
+class ProfileUpdate(BaseModel):
+    language: str | None = None
+    ai_call_consent: bool | None = None
+
+
+@app.get("/artisan/me")
+def artisan_me(authorization: str | None = Header(None)) -> dict:
+    """The signed-in artisan, so Studio greets her by her own name."""
+    return _via_platform(platform_client.me, _bearer(authorization))
+
+
+@app.patch("/artisan/me")
+def artisan_update(body: ProfileUpdate, authorization: str | None = Header(None)) -> dict:
+    """Studio's language choice and AI-call consent toggle, saved to B2."""
+    fields = body.model_dump(exclude_none=True)
+    return _via_platform(platform_client.update_me, _bearer(authorization), fields)
+
+
+@app.get("/artisan/listings")
+def artisan_listings(authorization: str | None = Header(None)) -> list:
+    """Her listings from B2 — what is live in the shop, with each passport code."""
+    return _via_platform(platform_client.my_listings, _bearer(authorization))
+
+
+@app.get("/shop-media/{name}")
+def shop_media(name: str) -> Response:
+    """A listing photo, fetched from the shop, for Studio's My Listings."""
+    if "/" in name or ".." in name:
+        raise HTTPException(status_code=404)
+    found = platform_client.shop_media(name)
+    if found is None:
+        raise HTTPException(status_code=404, detail="No such photo.")
+    content, content_type = found
+    return Response(content=content, media_type=content_type)
+
+
+@app.get("/artisan/orders")
+def artisan_orders(authorization: str | None = Header(None)) -> list:
+    """Orders this artisan has work on, including her share of bulk orders."""
+    return _via_platform(platform_client.artisan_orders, _bearer(authorization))
+
+
+@app.post("/artisan/orders/{order_id}/status")
+def artisan_order_status(
+    order_id: str, body: StatusRequest, authorization: str | None = Header(None)
+) -> dict:
+    """Accept or dispatch an order. B2 decides which moves are allowed."""
+    return _via_platform(platform_client.set_order_status, _bearer(authorization), order_id, body.status)
 
 
 @app.post("/listing/create", response_model=ListingCreateResponse)

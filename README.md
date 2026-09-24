@@ -108,23 +108,30 @@ against synthetic fixtures, not real phone media.
 >
 > Capture screen, two-button home, offline queue and sync, fulfilment
 > view, language switching, onboarding and consent — delivered for now
-> as a phone-shaped browser demo at
-> [`capture/static/mobile_demo.html`](capture/static/mobile_demo.html)
-> (served same-origin by A2's backend at `GET /mobile-demo`, so it calls
-> the real `/listing/create` and `/listing/confirm` endpoints, no mocks).
+> as **Craftly Studio**, a phone-shaped browser app in
+> [`capture/static/studio/`](capture/static/studio/), served same-origin by
+> A2's backend at `GET /studio/` (the old `/mobile-demo` redirects there).
+> It reaches B2 through A2's service too, so nothing is cross-origin.
 > A native app is deferred to the final project.
 >
+> - [x] Phone sign-in: a one-time code from B2 (shown on screen in the demo — no SMS yet)
 > - [x] Camera + mic capture, calls `POST /listing/create`
 > - [x] Confirmation loop UI (plays `summary_spoken`, one tap to confirm)
-> - [x] Offline queue — capture works with no network, syncs later
-> - [x] Fulfilment view: accept order, packing slip, dispatch (local mock
->       data — no order-engine backend to call yet, see B1/C2 below)
-> - [x] Language selection at onboarding + AI-call consent toggle
+> - [x] **Confirm & Publish goes live:** `POST /listing/publish` uploads the
+>       photos to B2 and publishes the listing there, which mints its passport
+>       — it is then in the shop, with a QR code
+> - [x] Offline queue — capture works with no network, syncs later; a confirmed
+>       listing that could not reach B2 waits as "waiting to go live" and retries
+> - [x] Fulfilment view: her **real orders from B2** (bulk orders show her
+>       share); Accept and Dispatch are saved to B2. "Packed" is kept on the
+>       phone — B2 has no packed state.
+> - [x] Language selection and AI-call consent, saved to her B2 account — C2
+>       does not call anyone who has not said yes
+> - Demo shortcut, on purpose: when A2 cannot hear a material cost, Studio
+>   pre-fills ₹350 and flags it on screen. A2 itself still returns `null`.
 >
-> ```bash
-> cd capture && uv sync && uv run uvicorn app.main:app --reload
-> ```
-> then open `http://localhost:8000/mobile-demo`.
+> Run everything with `python run_all.py` (see [Running the whole thing](#running-the-whole-thing)),
+> then open `http://localhost:8000/studio/` and sign in with the demo phone `9000000001`.
 
 ---
 
@@ -636,12 +643,14 @@ left open for three days cannot check out at a stale price and nobody can
 edit a cookie into a discount. Signed, so a tampered cookie is discarded
 as if the basket were empty.
 
-**Seed media are generated placeholders.** The seed catalogue describes
-real crafts and this repo has no photographs of them, so
-`market/scripts/generate_seed_media.py` draws a swatch per listing in the
-colours the artisan named. It is deterministic; re-run it after editing
-`seed/listings.json`. Drop a real photo in over any file of the same name
-and every surface picks it up.
+**The seed catalogue is sample data.** Its 14 artisans are fictional; its
+product photos are openly licensed Wikimedia Commons photographs of the
+same crafts, credited in
+[`market/seed/media/CREDITS.md`](market/seed/media/CREDITS.md) — not work
+by the artisans named on them. Present it as a sample catalogue. Do not
+re-run `market/scripts/generate_seed_media.py`: it draws colour swatches
+and would overwrite the photos. Drop a real photo in over any file of the
+same name and every surface picks it up.
 
 #### Layout of `market/`
 
@@ -717,6 +726,17 @@ How it plugs into C1, with no change to C1's code:
 | `market/orders.jsonl` (`Order`) | Books the courier, works out each artisan's payout, scripts the calls, feeds the demand alert |
 | `market/seed/` (artisans, inventory) | Pickup origins, artisan languages, stock for restock advice |
 
+**With B2** (`CRAFTLY_SERVICE_TOKEN` set to the same value in `platform/` and
+`integrations/` — `run_all.py` does this), C2 works from the real records instead:
+
+| B2 gives | C2 does with it |
+|---|---|
+| `GET /orders` (service token only) | The orders to fulfil — every order placed on C1, wherever it came from |
+| Order status | Books the courier only once the artisan has **accepted** in Studio |
+| `POST /orders/{id}/status` | Courier pickup → `dispatched`, handover → `delivered`, which settles the payout in B2 |
+| `GET /orders/{id}/settlement` | The "you've been paid" call speaks B2's payout amount; a payout B2 holds as `blocked` (no UPI id) is never called "credited" |
+| `GET /artisans/{id}/contact` (service token only) | Her real phone, her Studio language, and whether she agreed to AI calls — **no consent, no call** |
+
 ```bash
 cd integrations
 uv run python demo.py                                   # whole flow in the terminal
@@ -732,6 +752,31 @@ samples.
 ---
 
 ## Running the whole thing
+
+One command starts everything, wired together:
+
+```bash
+python run_all.py            # B2, A2 + Studio, C1, C2 — prices from C1's placeholder engine
+python run_all.py --b1       # also B1's price engine (needs its trained model in engines/models/)
+python run_all.py --reseed   # start again from a fresh B2 database
+```
+
+It seeds B2 on first run, gives B2 and C2 a shared service token, points C1
+at B2 (and at B1 with `--b1`), and prints where everything is. Services run
+through `uv run` if uv is installed; logs go to `logs/`. Ctrl+C stops all.
+
+| Open | What |
+|---|---|
+| http://localhost:8000/studio/ | Artisan app (Craftly Studio) — demo phone `9000000001` |
+| http://localhost:8100/ | Shop (buyer app); `/b2b` for bulk orders |
+| http://localhost:8300/ | Integrations console: courier, calls, demand alert |
+| http://localhost:8200/docs | Platform API |
+
+**Needed for a good demo:** `GROQ_API_KEY` in `capture/.env`. Without it
+speech-to-text and the cost/hours parsing still work, but a new listing has
+no title or description.
+
+### Running the services by hand
 
 Five services, five ports, nothing shared but HTTP (C2 also reads C1's order log).
 
@@ -750,22 +795,25 @@ database and the real price engine instead:
 
 ```bash
 cd market
-CRAFTLY_ADAPTERS=http CRAFTLY_PLATFORM_URL=http://localhost:8200 \
-  CRAFTLY_ENGINES_URL=http://localhost:8010 \
-  uv run uvicorn app.main:app --reload --port 8100
+CRAFTLY_ADAPTERS=http uv run uvicorn app.main:app --reload --port 8100
+# B1 not running? keep the placeholder prices, everything else from B2:
+CRAFTLY_ADAPTERS=http CRAFTLY_PRICE_ADAPTERS=stub uv run uvicorn app.main:app --reload --port 8100
 ```
+
+For C2 to read orders from B2 and settle deliveries there, start both
+`platform/` and `integrations/` with the same `CRAFTLY_SERVICE_TOKEN`
+(any long random string). `run_all.py` does all of this for you.
 
 Everything C1 shows — catalogue, artisans, inventory, passports, QR codes,
 placed orders — comes from B2. The verification codes do not change, so
 any hang-tag already printed still resolves. Pricing is meant to come from
 B1 the same way once wired up (see below).
 
-> **Ports.** B2 runs on **8200**, not the `8000` that
-> `market/.env.example` suggests as `CRAFTLY_PLATFORM_URL` — A2 is already
-> on 8000, and pointing C1 there gives it the capture service and a 404
-> shop. B1 runs on **8010**, which matches `market/.env.example`'s default
-> `CRAFTLY_ENGINES_URL` — nothing to override there. Set the platform
-> variable explicitly, as above.
+> **Ports.** B2 runs on **8200** and B1 on **8010**, and every service's
+> defaults now point there — no URL to override. Service-to-service
+> defaults use `127.0.0.1`, not `localhost`: on Windows, `localhost` tries
+> IPv6 first and each call between services waited about two seconds for
+> that to fail.
 >
 > **Prices are real too, endpoint-for-endpoint.** B1 now exposes
 > `POST /price` and `POST /split` (thin aliases over its native
@@ -777,15 +825,38 @@ B1 the same way once wired up (see below).
 
 ### The end-to-end path, today
 
-1. A2 turns a photo and a voice note into a `Listing`.
-2. `POST /listings` on B2 persists it; publishing mints its passport and QR.
-3. C1 reads `GET /catalog/entries` and renders the shop.
-4. A buyer scans a tag at a mela; `GET /passports/by-code/{code}` answers.
-5. Checkout `POST /orders` to B2.
-6. The artisan accepts, dispatches and delivers from her phone.
-7. Delivery settles the order and writes a payout row per artisan, with
-   her take-home paid exactly as quoted and the marketplace's fee taken
-   only from the margin above the wage floor.
+Run with `run_all.py`, every step below happens across the real services
+(checked end to end, including through the Studio UI in a browser):
+
+1. The artisan signs in to Studio with her phone; her AI-call consent is saved in B2.
+2. A2 turns a photo and a voice note into a `Listing`; she hears it back and confirms.
+3. `POST /listing/publish` uploads the photos to B2 and publishes the listing,
+   which mints its passport and QR.
+4. C1 reads `GET /catalog/entries` and renders the shop — the new piece
+   included, with its photo (fetched from B2), passport page, QR and reel.
+5. A buyer scans a tag at a mela; `GET /passports/by-code/{code}` answers.
+6. Checkout (retail or bulk) `POST /orders` to B2; a bulk order is split across
+   the real members of her cluster.
+7. The order appears in her Studio; she accepts it there.
+8. C2 sees it in B2, books the courier (waybill per pickup) and calls her in
+   her language — only if she said yes to calls.
+9. The courier delivers: C2 marks the order `delivered` in B2, which settles
+   it — her take-home paid exactly as quoted, the marketplace's fee taken
+   only from the margin above the wage floor — and C2's payment call speaks
+   B2's amount.
+
+**Still open**
+
+- **B1 prices.** B1's trained model (`engines/models/`) is not in git, so
+  `run_all.py` uses C1's placeholder price engine until it is copied in;
+  then `--b1`. B1's `/split` also allocates against its own demo roster
+  (`engines/demo_artisans.json`), not B2's artisans — C1's placeholder
+  engine uses B2's real clusters, so bulk splits are right today.
+- **One status per order.** On a bulk order split across a cluster, the
+  first artisan to accept accepts it for everyone — B2 tracks status per
+  order, not per share.
+- **Every external system is simulated** (marketplaces, courier, telephony,
+  SMS for the login code), as described under C2.
 
 ## Team
 

@@ -130,6 +130,11 @@ def get_entry(db: Session, listing_id: str) -> CatalogEntry | None:
     return to_entry(row)
 
 
+def artisan(db: Session, artisan_id: str) -> ArtisanOut | None:
+    row = db.get(Artisan, artisan_id)
+    return _artisan_out(row) if row is not None else None
+
+
 def cluster_members(db: Session, cluster_id: str) -> list[ArtisanOut]:
     """Everyone who pools capacity under this cluster.
 

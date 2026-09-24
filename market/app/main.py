@@ -10,11 +10,11 @@ each surface is for.
 
 from __future__ import annotations
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import config, deps
+from app import config, deps, media
 from app.adapters.http_platform import PlatformUnavailable
 from app.routes import api, b2b, buyer, passport
 from app.templating import page
@@ -27,7 +27,16 @@ app = FastAPI(
 
 config.MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(config.PACKAGE_DIR / "static")), name="static")
-app.mount("/media", StaticFiles(directory=str(config.MEDIA_DIR)), name="media")
+
+
+@app.get("/media/{name}", include_in_schema=False)
+def media_file(name: str) -> FileResponse:
+    """Seed photos from disk; photos artisans published, fetched from B2."""
+    path = media.file_for(name)
+    if path is None:
+        raise HTTPException(status_code=404, detail="No such file.")
+    return FileResponse(path)
+
 
 app.include_router(buyer.router)
 app.include_router(b2b.router)

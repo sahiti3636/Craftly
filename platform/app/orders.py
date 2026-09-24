@@ -209,6 +209,14 @@ def get(db: Session, order_id: str) -> Order | None:
     return db.scalars(_loaded().where(Order.order_id == order_id)).unique().one_or_none()
 
 
+def recent(db: Session, status: OrderStatus | None = None, limit: int = 200) -> list[Order]:
+    """Every order, newest first, optionally only those in one status."""
+    query = _loaded().order_by(Order.created_at.desc()).limit(limit)
+    if status is not None:
+        query = query.where(Order.status == status.value)
+    return list(db.scalars(query).unique().all())
+
+
 def for_artisan(db: Session, artisan_id: str) -> list[Order]:
     """Orders with work in them for this artisan.
 

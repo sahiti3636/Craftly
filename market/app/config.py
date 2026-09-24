@@ -24,11 +24,15 @@ PROJECT_DIR = PACKAGE_DIR.parent
 #: "stub" runs entirely on seed data; "http" calls the real B1/B2 services.
 ADAPTERS = os.environ.get("CRAFTLY_ADAPTERS", "stub").strip().lower()
 
-PLATFORM_URL = os.environ.get("CRAFTLY_PLATFORM_URL", "http://localhost:8000").rstrip("/")
-ENGINES_URL = os.environ.get("CRAFTLY_ENGINES_URL", "http://localhost:8010").rstrip("/")
+# 127.0.0.1, not localhost: on Windows "localhost" tries IPv6 first and every
+# service-to-service call waits ~2s for it to fail.
+PLATFORM_URL = os.environ.get("CRAFTLY_PLATFORM_URL", "http://127.0.0.1:8200").rstrip("/")
+ENGINES_URL = os.environ.get("CRAFTLY_ENGINES_URL", "http://127.0.0.1:8010").rstrip("/")
 
 SEED_DIR = Path(os.environ.get("CRAFTLY_SEED_DIR", PROJECT_DIR / "seed"))
 MEDIA_DIR = Path(os.environ.get("CRAFTLY_MEDIA_DIR", SEED_DIR / "media"))
+#: Copies of photos fetched from B2's media store (see app/media.py).
+MEDIA_CACHE_DIR = Path(os.environ.get("CRAFTLY_MEDIA_CACHE_DIR", PROJECT_DIR / "media_cache"))
 ORDERS_PATH = Path(os.environ.get("CRAFTLY_ORDERS_PATH", PROJECT_DIR / "orders.jsonl"))
 REELS_DIR = Path(os.environ.get("CRAFTLY_REELS_DIR", PROJECT_DIR / "reels"))
 QR_DIR = Path(os.environ.get("CRAFTLY_QR_DIR", PROJECT_DIR / "qr"))
@@ -50,5 +54,14 @@ LANGUAGES = ("en", "hi")
 DEFAULT_LANGUAGE = "en"
 
 
+#: Prices and bulk splits can be switched separately, so the shop can run
+#: off B2's real catalogue while B1 is not up. Defaults to ADAPTERS.
+PRICE_ADAPTERS = os.environ.get("CRAFTLY_PRICE_ADAPTERS", ADAPTERS).strip().lower()
+
+
 def using_stubs() -> bool:
     return ADAPTERS != "http"
+
+
+def using_stub_prices() -> bool:
+    return PRICE_ADAPTERS != "http"

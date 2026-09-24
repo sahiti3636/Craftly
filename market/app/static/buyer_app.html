@@ -64,6 +64,10 @@
   .hero h2 em{font-style:italic;display:block;}
   .hero .rule{width:46px;height:3px;background:var(--orange);margin:16px 0 14px;border-radius:2px;}
   .hero .caps{font-size:12px;letter-spacing:.22em;font-weight:600;line-height:1.75;opacity:.95;}
+  /* Hindi screens carry an English gloss, so the hero line is twice as long;
+     and letter-spacing pulls Devanagari conjuncts apart. */
+  .lang-hi .hero h2{font-size:27px;}
+  .lang-hi .hero .caps,.lang-hi .maker .sub,.lang-hi .fl2{letter-spacing:0;}
 
   .maker{display:flex;align-items:center;gap:14px;margin:16px 16px 0;padding:10px 16px 10px 10px;background:var(--card);border:1px solid var(--line);
     border-radius:22px;width:calc(100% - 32px);text-align:left;}
@@ -321,7 +325,14 @@
       collections:"संग्रह",reels:"रील",watch:"बनते हुए देखें",shopAll:"सभी वस्तुएँ",pieces:"वस्तुएँ",makers:"कारीगर",
       goesToMaker:"कारीगर को मिलता है",tagline:"हस्तनिर्मित · प्रमाणित",heroA:"हस्तनिर्मित,",heroB:"हर कृति एक कहानी",caps1:"असली लोग",caps2:"कालजयी शिल्प",caps3:"एक उज्ज्वल भारत",meetMaker:"कारीगरों से मिलें",meetSub:"असली कहानियाँ।<br>अनोखे शिल्प।",explore:"शिल्प देखें",seeAll:"सभी देखें",saved:"सहेजे गए",makersTitle:"कारीगरों से मिलें",nothingSaved:"रील पर दिल दबाएँ, यहाँ सहेजे जाएँगे।",pcs:"वस्तुएँ",filters:"फ़िल्टर",sortRel:"सबसे प्रासंगिक",sortLow:"कीमत: कम से ज़्यादा",sortHigh:"कीमत: ज़्यादा से कम",sortShare:"कारीगर को सबसे ज़्यादा",fLocation:"स्थान (राज्य)",fMaterial:"सामग्री",fCraft:"शिल्प",fColour:"रंग",fPrice:"कीमत (₹)",fMin:"न्यूनतम",fMax:"अधिकतम",fAvail:"उपलब्धता",fInStock:"अभी स्टॉक में",clearAll:"सब हटाएँ",showN:"{n} वस्तुएँ दिखाएँ",nResults:"{n} वस्तुएँ",nOne:"1 वस्तु"}
   };
-  function t(k){ return (T[state.lang] && T[state.lang][k]) || T.en[k] || k; }
+  // On Hindi screens every label carries a short English gloss in brackets.
+var SHORT_EN = {search:"Search", howPriced:"How it's priced", orderThanks:"Maker paid on delivery",
+  chain:"Its journey", unavailable:"Shop unavailable", nothingSaved:"Nothing saved yet"};
+function t(k){
+  var v = (T[state.lang] && T[state.lang][k]) || T.en[k] || k;
+  if (state.lang === "hi" && T.hi[k] && T.en[k] && T.hi[k] !== T.en[k]) v += " (" + (SHORT_EN[k] || T.en[k]) + ")";
+  return v;
+}
 
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
@@ -390,6 +401,7 @@
   function head(text){ return '<h1 class="h1">' + esc(text) + '</h1>'; }
 
   function render(){
+    document.body.classList.toggle("lang-hi", state.lang === "hi");
     var view = document.getElementById("view");
     var fn = SCREENS[route.name];
     try{
@@ -500,6 +512,7 @@
         '<div class="stage"><img src="' + esc(pic(p.image_url)) + '" alt=""></div>' +
         '<button class="playbtn" data-play="' + esc(id) + '" aria-label="Play reel">▶</button><div class="busytxt">Building the reel…</div>' +
         '<div class="rail-r">' +
+          '<button class="act" data-sound="1" aria-label="Sound"><span style="font-size:26px;line-height:30px">' + (state.sound ? "🔊" : "🔇") + '</span><span>' + (state.sound ? "Sound on" : "Sound off") + '</span></button>' +
           '<button class="act' + (state.likes[id] ? " on" : "") + '" data-like="' + esc(id) + '" aria-label="Like">' + ICON.heart + '<span>' + (state.likes[id] ? "Liked" : "Like") + '</span></button>' +
           '<button class="act saved' + (state.saved[id] ? " on" : "") + '" data-save="' + esc(id) + '" aria-label="Save">' + ICON.mark + '<span>' + (state.saved[id] ? "Saved" : "Save") + '</span></button>' +
           '<button class="act" data-share="' + esc(id) + '" aria-label="Share">' + ICON.share + '<span>Share</span></button></div>' +
@@ -522,12 +535,17 @@
     // give it 12s, then say it's still rendering — the next tap is instant.
     var ctl = window.AbortController ? new AbortController() : null;
     var slow = setTimeout(function(){ if (ctl) ctl.abort(); }, 12000);
-    fetch("/reel/" + encodeURIComponent(id), ctl ? {signal:ctl.signal} : undefined).then(function(r){ clearTimeout(slow); return r.text(); }).then(function(html){
+    // The reel in the language the buyer is reading: Hindi captions and a Hindi voiceover.
+    fetch("/reel/" + encodeURIComponent(id) + "?lang=" + state.lang, ctl ? {signal:ctl.signal} : undefined).then(function(r){ clearTimeout(slow); return r.text(); }).then(function(html){
       var doc = new DOMParser().parseFromString(html, "text/html");
       var v = doc.querySelector("video"), src = v && v.getAttribute("src");
       if (src){
-        stage.innerHTML = '<video src="' + esc(src) + '" autoplay muted loop playsinline></video>';
-        stage.firstChild.onclick = function(){ this.paused ? this.play() : this.pause(); };
+        stage.innerHTML = '<video src="' + esc(src) + '" autoplay' + (state.sound ? "" : " muted") + ' loop playsinline></video>';
+        var vid = stage.firstChild;
+        vid.onclick = function(){ this.paused ? this.play() : this.pause(); };
+        // Reels carry a voiceover. A browser may refuse sound before the viewer has
+        // interacted with the page; then play muted rather than not at all.
+        if (vid.play) vid.play().catch(function(){ vid.muted = true; vid.play().catch(function(){}); });
         sec.classList.add("playing"); return;
       }
       var frames = Array.prototype.map.call(doc.querySelectorAll("img"), function(i){ return i.getAttribute("src"); })
@@ -539,10 +557,10 @@
         sec.classList.add("playing"); toast("Storyboard preview — install ffmpeg for video");
         return;
       }
-      window.open("/reel/" + encodeURIComponent(id), "_blank");
+      window.open("/reel/" + encodeURIComponent(id) + "?lang=" + state.lang, "_blank");
     }).catch(function(e){
       if (e && e.name === "AbortError") toast("Still rendering this reel — tap play again in a minute");
-      else window.open("/reel/" + encodeURIComponent(id), "_blank");
+      else window.open("/reel/" + encodeURIComponent(id) + "?lang=" + state.lang, "_blank");
     }).then(function(){ clearTimeout(slow); sec.classList.remove("busy"); });
   }
   BIND.reels = function(params){
@@ -550,6 +568,9 @@
     function all(sel, fn){ Array.prototype.forEach.call(document.querySelectorAll(sel), fn); }
     all("[data-rc]", function(b){ b.onclick = function(){ reelCat = b.getAttribute("data-rc"); render(); }; });
     all("[data-play]", function(b){ b.onclick = function(){ playReel(b.getAttribute("data-play"), b.closest(".rl")); }; });
+    all("[data-sound]", function(b){ b.onclick = function(){ state.sound = !state.sound; save();
+      all(".rl video", function(v){ v.muted = !state.sound; });
+      all("[data-sound]", function(x){ x.firstChild.textContent = state.sound ? "🔊" : "🔇"; x.lastChild.textContent = state.sound ? "Sound on" : "Sound off"; }); }; });
     all("[data-like]", function(b){ b.onclick = function(){ var id = b.getAttribute("data-like"); if (state.likes[id]) delete state.likes[id]; else state.likes[id] = 1;
       save(); b.classList.toggle("on"); b.lastChild.textContent = state.likes[id] ? "Liked" : "Like"; }; });
     all("[data-save]", function(b){ b.onclick = function(){ var id = b.getAttribute("data-save"); if (state.saved[id]) delete state.saved[id]; else state.saved[id] = 1;
@@ -708,6 +729,7 @@
     var why = (p.price.explanation || []).map(function(x){ return "<li>" + esc(x) + "</li>"; }).join("");
     return '<div class="bleed">' + (pic(p.image_url) ? '<img src="' + esc(pic(p.image_url)) + '" alt="">' : "") + '</div>' +
       '<h1 style="font-size:24px;margin-bottom:4px">' + esc(title(p)) + '</h1>' +
+      (state.lang === "hi" && l.title_hi && l.title_en ? '<div class="muted" style="margin-bottom:4px">(' + esc(l.title_en) + ')</div>' : "") +
       '<div class="muted">' + esc(p.artisan_name) + (p.place ? " · " + esc(p.place) : "") + '</div>' +
       '<div style="margin:12px 0 2px"><span class="price">' + rupees(p.price.price_inr) + '</span></div>' +
       '<div class="share">' + p.artisan_share_pct + '% ' + t("toMaker") + ' · ' + rupees(p.price.artisan_take_home_inr) + '</div>' +
@@ -825,7 +847,7 @@
   /* ---------- verify passport ---------- */
   SCREENS.scan = function(){
     return head(t("verifyTitle")) + '<form id="scanForm"><label class="f">' + t("code") +
-      '<input name="code" placeholder="CR-XXXX-XXXX" autocapitalize="characters" required></label>' +
+      '<input name="code" placeholder="CR-XXXX-XXXX or lst_…" autocapitalize="characters" required></label>' +
       '<button class="btn" type="submit">' + t("check") + '</button></form>' +
       (sampleCode ? '<button class="btn ghost small" id="sampleBtn" style="margin-top:12px">' + t("trySample") + '</button>' : "") +
       '<div id="scanOut"></div>';
@@ -834,7 +856,14 @@
     var form = document.getElementById("scanForm"), out = document.getElementById("scanOut");
     function run(code){
       out.innerHTML = '<p class="muted">Checking…</p>';
-      api("/api/passports/" + encodeURIComponent(code.trim())).then(function(d){
+      // A passport code (CR-…) or the listing id an artisan sees in her Studio (lst_…).
+      var c = code.trim();
+      var lookup = /^lst_/i.test(c)
+        ? api("/api/products/" + encodeURIComponent(c.toLowerCase())).then(function(p){
+            if (!p.passport_code) throw new Error("This listing has no passport yet.");
+            return api("/api/passports/" + encodeURIComponent(p.passport_code)); })
+        : api("/api/passports/" + encodeURIComponent(c));
+      lookup.then(function(d){
         var a = d.artisan || {};
         out.innerHTML = '<div class="note ok"><b>✓ Verified</b> · ' + esc(d.verification_code) + '</div>' +
           '<div class="box"><h3>' + t("madeBy") + " " + esc(a.name || "") + '</h3><div class="muted">' +

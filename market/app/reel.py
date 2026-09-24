@@ -48,7 +48,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, features
 
-from app import config, voice
+from app import config, media, voice
 from app.captions import CaptionCard, REEL_SECONDS, script
 from app.contracts import Passport
 from app.view import ProductCard
@@ -297,19 +297,17 @@ class _Text:
 
 
 def local_media_path(url: str | None) -> Path | None:
-    """Resolve a media URL to a file on disk, if it is one of ours.
+    """Resolve a media URL to a file on disk.
 
-    Handles the `/media/...` URLs the seed catalogue uses. A remote URL
-    from B2's real storage returns None and the caller falls back to a
-    plain background — downloading someone's product photo on the request
-    path to render a reel is a decision for whoever runs the media store,
-    not something to sneak in here.
+    `/media/...` covers both the seed catalogue's files and photos an
+    artisan published to B2, which `app/media.py` fetches from B2 once and
+    keeps. Any other remote URL returns None and the reel falls back to a
+    plain background.
     """
     if not url:
         return None
     if url.startswith("/media/"):
-        candidate = Path(config.MEDIA_DIR) / Path(url).name
-        return candidate if candidate.exists() else None
+        return media.file_for(Path(url).name)
     path = Path(url)
     return path if path.exists() else None
 

@@ -331,21 +331,22 @@ def _build_summary_en(fields: ExtractedFields) -> str:
 
 
 def _build_summary_hi(fields: ExtractedFields) -> str:
-    # Hinglish phrasing ("product", "material cost") is intentional — this
-    # mirrors how these terms are commonly spoken in real Hindi speech
-    # elsewhere in this pipeline, not a translation gap.
-    product = _product_label(fields) or "product"
-    sentences = [f"yeh aapka {product} hai."]
+    # Devanagari, not romanized Hinglish: this is read aloud by a Hindi
+    # voice, which pronounces Latin letters as English — "yeh aapka product
+    # hai" came out sounding like English. Product names stay as extracted
+    # (often English craft words, which is how they are spoken anyway).
+    product = _product_label(fields) or "प्रोडक्ट"
+    sentences = [f"यह आपका {product} है।"]
 
     if "material_cost_inr" in fields.needs_confirmation:
-        sentences.append("material cost kitna tha?")
+        sentences.append("सामान की लागत कितनी थी?")
     elif fields.material_cost_inr is not None:
-        sentences.append(f"material cost {_format_number(fields.material_cost_inr)} rupaye hai.")
+        sentences.append(f"सामान की लागत {_format_number(fields.material_cost_inr)} रुपये है।")
 
     if "hours_worked" in fields.needs_confirmation:
-        sentences.append("banane mein kitne ghante lage?")
+        sentences.append("इसे बनाने में कितने घंटे लगे?")
     elif fields.hours_worked is not None:
-        sentences.append(f"banane mein {_format_number(fields.hours_worked)} ghante lage.")
+        sentences.append(f"इसे बनाने में {_format_number(fields.hours_worked)} घंटे लगे।")
 
     return " ".join(sentences)
 

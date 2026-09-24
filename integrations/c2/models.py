@@ -145,6 +145,9 @@ class Payout(BaseModel):
         None,
         description="None when C1 did not carry a take-home figure. Missing is not zero.",
     )
+    #: B2's payout status once the order is settled there: "pending",
+    #: "paid", or "blocked" (no UPI id on file). None when not from B2.
+    payout_status: str | None = None
 
 
 class CallLog(BaseModel):

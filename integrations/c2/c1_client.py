@@ -23,12 +23,14 @@ from typing import Any
 
 import httpx
 
-from c2 import config
+from c2 import b2_client, config
 from c2.models import Order
 
 SRC_HTTP = "c1_http"
 SRC_INPROCESS = "c1_inprocess"
 SRC_SEED = "seed_fallback"
+#: Where orders came from, as `orders_or_sample` reports it.
+SRC_B2 = "b2"
 
 
 def today() -> date:
@@ -66,7 +68,9 @@ def seed_inventory() -> dict[str, dict[str, Any]]:
 
 
 def artisan(artisan_id: str) -> dict[str, Any]:
-    return seed_artisans().get(artisan_id, {"artisan_id": artisan_id, "name": artisan_id})
+    """From C1's seed, else from B2 (an artisan who signed up in Studio)."""
+    found = seed_artisans().get(artisan_id) or b2_client.artisan(artisan_id)
+    return found or {"artisan_id": artisan_id, "name": artisan_id}
 
 
 def cluster_members(artisan_id: str) -> list[dict[str, Any]]:
@@ -301,8 +305,12 @@ def sample_orders() -> list[Order]:
 
 
 def orders_or_sample() -> tuple[list[Order], str]:
-    """C1's real orders if there are any, else the sample set. The second
-    value says which, so nothing downstream passes samples off as real."""
+    """B2's orders when C2 has B2's service token (even if there are none
+    yet), else C1's local order log, else the sample set. The second value
+    says which, so nothing downstream passes samples off as real."""
+    from_b2 = b2_client.orders()
+    if from_b2 is not None:
+        return from_b2, SRC_B2
     real = load_orders()
     if real:
         return real, "c1_orders_jsonl"

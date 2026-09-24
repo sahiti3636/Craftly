@@ -105,7 +105,7 @@ def test_draft_then_confirm_ambiguous_cost_flow(client):
     # Requirement 3: a flagged field must be spoken back as a question,
     # not stated as fact.
     assert "?" in listing["summary_spoken"]
-    assert "material cost kitna tha?" in listing["summary_spoken"]
+    assert "सामान की लागत कितनी थी?" in listing["summary_spoken"]
     # And a real number must never be fabricated for it.
     assert "None" not in listing["summary_spoken"]
 

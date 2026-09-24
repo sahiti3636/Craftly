@@ -5,6 +5,11 @@
 
 Both steps are idempotent per order; running `confirm` twice returns the
 same shipment and calls.
+
+For an order that lives in B2 (`platform=True`), the courier is booked
+only once the artisan has accepted the order in Craftly Studio, delivery
+is recorded in B2 (which settles the payout), and the payment call speaks
+B2's payout rows rather than a second calculation of them.
 """
 
 from __future__ import annotations
@@ -12,7 +17,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from c2 import c1_client, courier, voice
+from c2 import b2_client, c1_client, courier, voice
 from c2.models import CallLog, Order, Payout, Shipment
 
 
@@ -73,7 +78,56 @@ def payouts(order: Order) -> list[Payout]:
     return out
 
 
-def confirm(order: Order) -> tuple[Shipment, list[Payout], list[CallLog]]:
+class NotReady(RuntimeError):
+    """The order cannot take this step yet; the message says why."""
+
+
+def settled_payouts(order: Order) -> list[Payout]:
+    """What B2 recorded when it settled this order, one row per artisan."""
+    settlement = b2_client.settlement(order.order_id)
+    acc: dict[str, dict[str, Any]] = {}
+    for row in settlement.get("payouts", []):
+        entry = acc.setdefault(row["artisan_id"], {"qty": 0, "amount": 0, "known": True, "titles": [], "status": set()})
+        entry["qty"] += row.get("quantity") or 0
+        if row.get("amount_inr") is None:
+            entry["known"] = False
+        else:
+            entry["amount"] += row["amount_inr"]
+        if row.get("listing_title") and row["listing_title"] not in entry["titles"]:
+            entry["titles"].append(row["listing_title"])
+        entry["status"].add(row.get("status"))
+    out = []
+    for artisan_id, entry in acc.items():
+        art = c1_client.artisan(artisan_id)
+        # One blocked row is enough to say so: that money has not moved.
+        status = "blocked" if "blocked" in entry["status"] else next(iter(entry["status"]), None)
+        out.append(
+            Payout(
+                artisan_id=artisan_id,
+                artisan_name=art.get("name", artisan_id),
+                village=art.get("village"),
+                state=art.get("state"),
+                languages=art.get("languages", []),
+                quantity=entry["qty"],
+                titles_en=entry["titles"],
+                amount_inr=entry["amount"] if entry["known"] else None,
+                payout_status=status,
+            )
+        )
+    return out
+
+
+def confirm(order: Order, platform: bool = False) -> tuple[Shipment, list[Payout], list[CallLog]]:
+    if platform:
+        try:
+            current = b2_client.status(order.order_id)
+        except b2_client.B2Error as exc:
+            raise NotReady(str(exc)) from exc
+        if current not in b2_client.ACCEPTED:
+            raise NotReady(
+                f"This order is {current}. The courier is booked once the artisan "
+                "accepts it in Craftly Studio."
+            )
     shipment = courier.book(order)
     owed = payouts(order)
     calls: list[CallLog] = []
@@ -83,8 +137,19 @@ def confirm(order: Order) -> tuple[Shipment, list[Payout], list[CallLog]]:
     return shipment, owed, calls
 
 
-def deliver(order: Order) -> list[CallLog]:
-    """Simulate delivery: mark the shipment delivered and place the payout calls."""
+def deliver(order: Order, platform: bool = False) -> list[CallLog]:
+    """Simulate delivery: mark the shipment delivered and place the payout calls.
+
+    For a B2 order the delivery is recorded in B2 first, and the calls
+    carry what B2 settled."""
+    if platform:
+        try:
+            b2_client.deliver(order.order_id)
+            owed = settled_payouts(order)
+        except b2_client.B2Error as exc:
+            raise NotReady(str(exc)) from exc
+    else:
+        owed = payouts(order)
     shipment = courier.get(order.order_id) or courier.book(order)
     at = datetime.now(timezone.utc)
-    return [voice.place_call("payment_credited", order, p, shipment, at=at) for p in payouts(order)]
+    return [voice.place_call("payment_credited", order, p, shipment, at=at) for p in owed]

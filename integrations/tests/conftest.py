@@ -65,6 +65,8 @@ def fake_c1(monkeypatch, tmp_path):
     monkeypatch.setattr(c1_client, "all_listing_ids", lambda: list(products))
     monkeypatch.setattr(config, "LOG_DIR", tmp_path / "logs")
     monkeypatch.setattr(config, "TODAY_OVERRIDE", "2026-09-16")  # a Wednesday
+    # Never reach a real B2 from a test, whatever the developer's .env says.
+    monkeypatch.setattr(config, "SERVICE_TOKEN", "")
     courier.reset()
     voice.reset()
     return products

@@ -20,6 +20,15 @@ SUPPORTED_EXTENSIONS = {".m4a", ".mp3", ".wav", ".ogg"}
 MIN_DURATION_SEC = 1.5
 MAX_DURATION_SEC = 90.0
 
+#: The languages artisans speak to this pipeline (app/lang/ has tables for
+#: each). With no hint, detection only ever picks one of these — left free,
+#: Whisper has heard a slightly muffled English clip as Norwegian.
+SPOKEN_LANGUAGES = ("hi", "en", "te", "ta", "kn")
+#: Detected as a close relative, but meant as the key language: spoken Hindi
+#: is often labelled "ur" and written in Urdu script, which nothing
+#: downstream reads.
+SAME_AS = {"ur": "hi"}
+
 MODEL_SIZE = os.environ.get("CRAFTLY_ASR_MODEL_SIZE", "small")
 DEVICE = os.environ.get("CRAFTLY_ASR_DEVICE", "cpu")
 COMPUTE_TYPE = os.environ.get("CRAFTLY_ASR_COMPUTE_TYPE", "int8")
@@ -141,10 +150,22 @@ def transcribe(audio_path: str | Path, language_hint: str | None = None) -> dict
             task="transcribe",
         )
         text = "".join(segment.text for segment in segments).strip()
+        language = info.language
+
+        if language_hint is None and language not in SPOKEN_LANGUAGES:
+            # Pick the likeliest language we support from Whisper's own
+            # scores (Urdu counting as Hindi) and transcribe again in it.
+            scores: dict[str, float] = {}
+            for code, prob in info.all_language_probs or [(language, 1.0)]:
+                code = SAME_AS.get(code, code)
+                scores[code] = scores.get(code, 0.0) + prob
+            language = max(SPOKEN_LANGUAGES, key=lambda code: scores.get(code, 0.0))
+            segments, _ = model.transcribe(str(wav_path), language=language, task="transcribe")
+            text = "".join(segment.text for segment in segments).strip()
 
         return {
             "text": text,
-            "detected_language": info.language,
+            "detected_language": language,
             "confidence": info.language_probability,
             "duration_sec": round(duration_sec, 3),
         }

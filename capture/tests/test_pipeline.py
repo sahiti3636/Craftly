@@ -148,6 +148,24 @@ def test_numeric_only_correction_still_refreshes_summary_spoken(monkeypatch):
     assert "500" in updated_listing.summary_spoken
 
 
+def test_semantic_correction_survives_the_llm_failing(monkeypatch):
+    """No Groq key, network down: her corrections still save, confirm does not crash."""
+    listing, fields = _draft(monkeypatch)
+
+    def down(*args, **kwargs):
+        raise RuntimeError("GROQ_API_KEY is not set.")
+
+    monkeypatch.setattr(pipeline_module, "generate_descriptions", down)
+    updated_listing, _ = apply_corrections(
+        listing, fields, {"material": "clay", "material_cost_inr": 500}, confirmed=True
+    )
+
+    assert updated_listing.material == "clay"
+    assert updated_listing.material_cost_inr == 500
+    assert updated_listing.title_en == listing.title_en  # kept, not blanked
+    assert "500" in updated_listing.summary_spoken  # never a stale number read aloud
+
+
 def test_semantic_correction_regenerates_marketing_copy(monkeypatch):
     calls: list = []
     monkeypatch.setattr(describe_module, "_call_groq_marketing", _fake_marketing(calls))

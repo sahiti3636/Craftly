@@ -95,7 +95,7 @@ def test_generate_descriptions_happy_path_hindi_source(monkeypatch):
     assert result.description_hi == _valid_description()
     # Hindi source language -> deterministic template, no LLM call needed.
     assert result.summary_spoken == (
-        "yeh aapka home decor hai. material cost 500 rupaye hai. banane mein 3 ghante lage."
+        "यह आपका home decor है। सामान की लागत 500 रुपये है। इसे बनाने में 3 घंटे लगे।"
     )
 
 
@@ -182,13 +182,13 @@ def test_summary_en_fractional_hours_and_cost_render_cleanly():
 def test_summary_hi_with_product_cost_and_hours():
     fields = ExtractedFields(category="diya", material_cost_inr=500, hours_worked=3.0)
     assert describe_module._build_summary_hi(fields) == (
-        "yeh aapka diya hai. material cost 500 rupaye hai. banane mein 3 ghante lage."
+        "यह आपका diya है। सामान की लागत 500 रुपये है। इसे बनाने में 3 घंटे लगे।"
     )
 
 
 def test_summary_hi_no_cost_or_hours():
     fields = ExtractedFields(category="tokri")
-    assert describe_module._build_summary_hi(fields) == "yeh aapka tokri hai."
+    assert describe_module._build_summary_hi(fields) == "यह आपका tokri है।"
 
 
 def test_summary_word_counts_are_within_spec_around_15_words():
@@ -237,7 +237,7 @@ def test_summary_en_asks_both_questions_when_both_flagged():
 def test_summary_hi_asks_question_when_cost_flagged_for_confirmation():
     fields = ExtractedFields(category="diya", hours_worked=3.0, needs_confirmation=["material_cost_inr"])
     result = describe_module._build_summary_hi(fields)
-    assert result == "yeh aapka diya hai. material cost kitna tha? banane mein 3 ghante lage."
+    assert result == "यह आपका diya है। सामान की लागत कितनी थी? इसे बनाने में 3 घंटे लगे।"
     assert "?" in result
 
 
@@ -279,7 +279,7 @@ def test_generate_descriptions_skips_marketing_copy_when_only_a_pending_question
 
     assert result.title_en is None
     assert result.description_en is None
-    assert result.summary_spoken == "yeh aapka product hai. material cost kitna tha?"
+    assert result.summary_spoken == "यह आपका प्रोडक्ट है। सामान की लागत कितनी थी?"
 
 
 def test_generate_descriptions_returns_all_null_when_truly_nothing_at_all(monkeypatch):

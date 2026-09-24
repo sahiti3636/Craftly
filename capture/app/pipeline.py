@@ -88,6 +88,13 @@ def build_draft(
     return listing, merged
 
 
+def _summary_or(fallback: str | None, fields: ExtractedFields, language: str | None) -> str | None:
+    try:
+        return generate_spoken_summary(fields, language)
+    except Exception:  # noqa: BLE001 — only non-hi/en summaries call the LLM
+        return fallback
+
+
 def apply_corrections(
     listing: Listing,
     extracted_fields: ExtractedFields,
@@ -130,7 +137,20 @@ def apply_corrections(
     numeric_changed = bool(set(corrections) & NUMERIC_FIELDS)
 
     if semantic_changed:
-        generated = generate_descriptions(updated_fields, listing.source_language)
+        try:
+            generated = generate_descriptions(updated_fields, listing.source_language)
+        except Exception:  # noqa: BLE001 — same degrade-not-crash rule as create_listing
+            # The LLM step failed (no key, network, a refusal). Her corrected
+            # fields still save; the title and description she already
+            # heard stay, and the spoken summary is rebuilt from the
+            # corrected fields so it never reads out a stale number.
+            generated = GeneratedDescriptions(
+                title_en=listing.title_en,
+                title_hi=listing.title_hi,
+                description_en=listing.description_en,
+                description_hi=listing.description_hi,
+                summary_spoken=_summary_or(listing.summary_spoken, updated_fields, listing.source_language),
+            )
     elif numeric_changed:
         generated = GeneratedDescriptions(
             title_en=listing.title_en,

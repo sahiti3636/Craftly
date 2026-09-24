@@ -165,14 +165,17 @@ def test_partial_inventory_update_leaves_the_rest_alone(client, artisan_headers,
     assert inventory["lead_time_days"] == 7
 
 
-def test_mine_shows_drafts_and_nobody_elses(client, artisan_headers):
+def test_mine_shows_drafts_and_nobody_elses(client, artisan_headers, artisan_id):
     client.post(
         "/listings",
         json={"listing": {"listing_id": "lst_m1", "artisan_id": "x", "title_en": "One"}},
         headers=artisan_headers,
     )
     mine = client.get("/listings/mine", headers=artisan_headers).json()
-    assert [entry["listing"]["listing_id"] for entry in mine] == ["lst_m1"]
+    # The demo artisan owns seeded pieces too; the draft is among them, and
+    # nothing belongs to anyone else.
+    assert "lst_m1" in [entry["listing"]["listing_id"] for entry in mine]
+    assert {entry["listing"]["artisan_id"] for entry in mine} == {artisan_id}
 
 
 def test_writing_a_listing_needs_a_token(client):

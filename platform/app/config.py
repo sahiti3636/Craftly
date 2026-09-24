@@ -87,3 +87,9 @@ PLATFORM_FEE_PCT = float(os.environ.get("CRAFTLY_PLATFORM_FEE_PCT", 0.10))
 #: Seed directory used by `python -m app.seed`. Points at C1's committed
 #: catalogue so that flipping CRAFTLY_ADAPTERS=http gives the same shop.
 SEED_DIR = Path(os.environ.get("CRAFTLY_SEED_DIR", REPO_DIR / "market" / "seed"))
+
+#: Shared with C2 (integrations). A request bearing it acts as the
+#: `service` account: it can list every order, move an order along as the
+#: courier picks it up and delivers it, and read an artisan's contact
+#: details and call consent. Unset, nothing can — C2 then works without B2.
+SERVICE_TOKEN = os.environ.get("CRAFTLY_SERVICE_TOKEN", "")

@@ -65,6 +65,12 @@ def startup_warnings() -> list[str]:
             "resolve on a phone. Set CRAFTLY_PUBLIC_URL to an address a device on "
             "the same network can reach before printing any hang-tags."
         )
+    if not config.SERVICE_TOKEN:
+        warnings.append(
+            "CRAFTLY_SERVICE_TOKEN is unset, so C2 cannot read orders from here or "
+            "mark them delivered, and no delivery settles a payout on its own. Set "
+            "the same value here and in integrations/.env."
+        )
     return warnings
 
 
