@@ -186,3 +186,19 @@ def test_the_passport_is_issued_when_the_listing_goes_live(client, artisan_heade
     ).json()
     assert live["verification_code"] is not None
     assert live["qr_url"].endswith(".png")
+
+
+def test_passport_claims_only_what_happened(client, seeded, a_listing):
+    """A listing published from the app was spoken; a seeded one was typed. Neither
+    passport claims a state minimum wage that no price engine applies."""
+    spoken = client.get(f"/passports/by-listing/{a_listing['listing']['listing_id']}").json()
+    labels = [step["label"] for step in spoken["chain"]]
+    assert "Catalogued from the artisan's own voice" in labels
+    floor = next(step["detail"] for step in spoken["chain"] if step["label"] == "Priced against a wage floor")
+    assert "minimum wage" not in floor and "4 hours of her work" in floor
+
+    sample_id = next(e["listing"]["listing_id"] for e in client.get("/catalog/entries").json()
+                     if e["listing"]["listing_id"] != a_listing["listing"]["listing_id"])
+    sample = client.get(f"/passports/by-listing/{sample_id}").json()
+    labels = [step["label"] for step in sample["chain"]]
+    assert "Sample listing" in labels and "Catalogued from the artisan's own voice" not in labels

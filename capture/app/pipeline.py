@@ -11,13 +11,19 @@ spinning up FastAPI.
 from __future__ import annotations
 
 import asyncio
+import math
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Callable
 
 from app.asr import transcribe
-from app.describe import GeneratedDescriptions, generate_descriptions, generate_spoken_summary
+from app.describe import (
+    GeneratedDescriptions,
+    _has_anything_to_report,
+    generate_descriptions,
+    generate_spoken_summary,
+)
 from app.extract import ExtractedFields, extract_fields
 from app.image import clean_product_image
 from app.merge import merge_extraction
@@ -78,7 +84,7 @@ def build_draft(
         material=merged.material,
         colours=merged.colours,
         dimensions=merged.dimensions,
-        material_cost_inr=merged.material_cost_inr,
+        material_cost_inr=_whole_rupees(merged.material_cost_inr),
         hours_worked=merged.hours_worked,
         confidence=merged.confidence,
         needs_confirmation=merged.needs_confirmation,
@@ -86,6 +92,13 @@ def build_draft(
         image_clean_url=None,
     )
     return listing, merged
+
+
+def _whole_rupees(value: int | float | None) -> int | None:
+    """The listing, B2 and the shop hold costs in whole rupees. A spoken
+    "saadhe baarah rupaye" is 12.5; rounding it up keeps the wage floor
+    from being understated (and a fraction here used to crash the request)."""
+    return None if value is None else math.ceil(value - 1e-9)
 
 
 def _summary_or(fallback: str | None, fields: ExtractedFields, language: str | None) -> str | None:
@@ -183,7 +196,7 @@ def apply_corrections(
             "material": updated_fields.material,
             "colours": updated_fields.colours,
             "dimensions": updated_fields.dimensions,
-            "material_cost_inr": updated_fields.material_cost_inr,
+            "material_cost_inr": _whole_rupees(updated_fields.material_cost_inr),
             "hours_worked": updated_fields.hours_worked,
             "confidence": updated_fields.confidence,
             "needs_confirmation": updated_fields.needs_confirmation,
@@ -232,6 +245,7 @@ async def create_listing(
     audio_path: Path,
     image_original_url: str,
     language_hint: str | None = None,
+    language_preference: str | None = None,
 ) -> dict:
     """The end-to-end path behind POST /listing/create.
 
@@ -278,7 +292,10 @@ async def create_listing(
         asr_detail,
     ) = await asyncio.gather(
         _run_stage("image_cleanup", clean_product_image, image_path),
-        _run_stage("transcription", transcribe, audio_path, language_hint=language_hint),
+        _run_stage(
+            "transcription", transcribe, audio_path,
+            language_hint=language_hint, language_preference=language_preference,
+        ),
     )
 
     clean_path: str | None = None
@@ -298,10 +315,15 @@ async def create_listing(
         errors.append(asr_code)
         debug["transcription_error"] = asr_detail
         transcript = ""
-        detected_language = language_hint or "en"
+        detected_language = language_hint or language_preference or "en"
     else:
         transcript = asr_result["text"]
         detected_language = asr_result["detected_language"]
+        if not transcript:
+            # Silence or noise only: say so, rather than an empty listing
+            # that looks like the pipeline worked.
+            errors.append("transcription_failed")
+            debug["transcription_error"] = "no speech detected"
 
     # --- Stage 2: numbers parsing + LLM extraction, concurrently ---
     (numbers_result, debug["numbers_parsing_sec"], numbers_code, numbers_detail), (
@@ -342,7 +364,15 @@ async def create_listing(
     if desc_code:
         errors.append(desc_code)
         debug["description_generation_error"] = desc_detail
-        generated = GeneratedDescriptions()
+        # The readback does not need the marketing copy: it is what she
+        # hears to confirm her own cost and hours, built from a template
+        # for Hindi and English. Losing it with the title sent her an
+        # English "recording saved" line instead of her Hindi readback.
+        generated = GeneratedDescriptions(
+            summary_spoken=_summary_or(None, merged, detected_language)
+            if _has_anything_to_report(merged)
+            else None
+        )
 
     # --- Stage 5: TTS of the spoken summary ---
     summary_audio_path: Path | None = None
@@ -373,7 +403,7 @@ async def create_listing(
         material=merged.material,
         colours=merged.colours,
         dimensions=merged.dimensions,
-        material_cost_inr=merged.material_cost_inr,
+        material_cost_inr=_whole_rupees(merged.material_cost_inr),
         hours_worked=merged.hours_worked,
         confidence=merged.confidence,
         needs_confirmation=merged.needs_confirmation,

@@ -261,8 +261,8 @@ class StubPriceEngine:
             lines.append("Hours of work have not been confirmed with the artisan yet.")
         else:
             lines.append(
-                f"Work: {hours:g} hours at Rs {wage:.0f}/hour, the "
-                f"{state or 'state'} minimum wage = Rs {hours * wage:,.0f}"
+                f"Work: {hours:g} hours at Rs {wage:.0f}/hour (placeholder "
+                f"{state or 'state'} wage rate) = Rs {hours * wage:,.0f}"
             )
 
         if material:

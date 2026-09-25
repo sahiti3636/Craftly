@@ -171,7 +171,7 @@ def load(seed_dir: Path | None = None, demo: bool = True) -> dict[str, int]:
                     )
                 )
 
-            passports.issue(db, listing)
+            passports.issue(db, listing, from_voice=False)
             counts["listings"] += 1
             counts["passports"] += 1
 

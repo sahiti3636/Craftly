@@ -132,6 +132,9 @@ def health() -> HealthOut:
             )
             artisans = db.scalar(select(func.count()).select_from(Artisan)) or 0
             order_count = db.scalar(select(func.count()).select_from(Order)) or 0
+            demo_upi = db.scalar(
+                select(func.count()).select_from(Artisan).where(Artisan.payout_upi.like("%@craftly.demo"))
+            ) or 0
     except SQLAlchemyError:
         log.exception("health check could not reach the database")
         return HealthOut(status="degraded", database="unreachable", warnings=startup_warnings())
@@ -143,5 +146,13 @@ def health() -> HealthOut:
         published=published,
         artisans=artisans,
         orders=order_count,
-        warnings=startup_warnings(),
+        warnings=startup_warnings()
+        + (
+            [
+                f"{demo_upi} seeded artisans have placeholder UPI ids (...@craftly.demo). "
+                "Their payouts are demo records: no real account would receive them."
+            ]
+            if demo_upi
+            else []
+        ),
     )

@@ -29,7 +29,7 @@ def _fake_clean(clean_path="/tmp/fake_clean.jpg", alpha_path="/tmp/fake_alpha.pn
 
 
 def _fake_transcribe(text="paanch sau rupaye, teen ghante", language="hi"):
-    def _inner(audio_path, language_hint=None):
+    def _inner(audio_path, language_hint=None, **kwargs):
         return {"text": text, "detected_language": language, "confidence": 0.9, "duration_sec": 2.0}
 
     return _inner
@@ -133,7 +133,7 @@ async def test_image_cleanup_and_transcription_run_concurrently(monkeypatch):
         time.sleep(delay)
         return {"clean_path": "/tmp/c.jpg", "alpha_path": "/tmp/a.png", "warnings": []}
 
-    def slow_transcribe(audio_path, language_hint=None):
+    def slow_transcribe(audio_path, language_hint=None, **kwargs):
         time.sleep(delay)
         return {"text": "teen ghante", "detected_language": "hi", "confidence": 0.9, "duration_sec": 2.0}
 
@@ -175,7 +175,7 @@ async def test_numbers_parsing_and_llm_extraction_run_concurrently(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_asr_failure_degrades_transcript_but_not_image(monkeypatch):
-    def failing_transcribe(audio_path, language_hint=None):
+    def failing_transcribe(audio_path, language_hint=None, **kwargs):
         raise RuntimeError("ffmpeg exploded")
 
     monkeypatch.setattr(pipeline_module, "transcribe", failing_transcribe)
@@ -192,7 +192,7 @@ async def test_asr_failure_degrades_transcript_but_not_image(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_asr_failure_falls_back_to_language_hint_if_given(monkeypatch):
-    def failing_transcribe(audio_path, language_hint=None):
+    def failing_transcribe(audio_path, language_hint=None, **kwargs):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(pipeline_module, "transcribe", failing_transcribe)
@@ -260,7 +260,9 @@ async def test_llm_extraction_failure_degrades_but_numbers_parsing_still_works(m
 
 
 @pytest.mark.asyncio
-async def test_description_generation_failure_degrades_and_skips_tts(monkeypatch):
+async def test_description_failure_still_reads_back_her_numbers(monkeypatch):
+    """The title and description need the LLM; the readback does not. When
+    the copy fails she still hears her own cost and hours, in her language."""
     from app.describe import DescriptionError
 
     def failing_describe(fields, language):
@@ -275,12 +277,8 @@ async def test_description_generation_failure_degrades_and_skips_tts(monkeypatch
     assert "description_generation_failed" in result["errors"]
     listing = result["listing"]
     assert listing.title_en is None
-    assert listing.summary_spoken is None
-    # TTS was never called — there's nothing to speak, and this isn't
-    # itself counted as a TTS failure.
-    assert speak_calls == []
-    assert "tts_failed" not in result["errors"]
-    assert result["summary_audio_path"] is None
+    assert listing.summary_spoken and "500" in listing.summary_spoken and "3" in listing.summary_spoken
+    assert speak_calls == [(listing.summary_spoken, "hi")]
     # Factual fields from merge are untouched by the description failure.
     assert listing.material_cost_inr == 500
 
@@ -334,7 +332,7 @@ async def test_numbers_parsing_failure_degrades_to_empty_matches(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_multiple_simultaneous_stage_failures_all_degrade_independently(monkeypatch):
-    def failing_transcribe(audio_path, language_hint=None):
+    def failing_transcribe(audio_path, language_hint=None, **kwargs):
         raise RuntimeError("asr down")
 
     def failing_speak(text, language):

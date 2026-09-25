@@ -39,7 +39,7 @@ def client():
 
 @pytest.fixture(autouse=True)
 def _mock_heavy_dependencies(monkeypatch, tmp_path):
-    def fake_transcribe(audio_path, language_hint=None):
+    def fake_transcribe(audio_path, language_hint=None, **kwargs):
         return {
             "text": AMBIGUOUS_TRANSCRIPT,
             "detected_language": "hi",

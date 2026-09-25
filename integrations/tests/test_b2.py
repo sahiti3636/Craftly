@@ -76,7 +76,7 @@ def test_calls_use_her_real_phone_and_chosen_language(b2):
     call = voice.place_call("order_confirmed", b2["orders"][0], pipeline.payouts(b2["orders"][0])[0])
     assert call.to_phone == "+919000000001"
     assert call.language == "en"  # her Studio language, though her profile lists Hindi first
-    assert call.outcome.startswith("ACKNOWLEDGED")
+    assert call.outcome.startswith("PLACED")
 
 
 def test_no_consent_no_call(b2):
@@ -97,3 +97,25 @@ def test_without_the_token_c2_works_as_before():
     assert b2_client.orders() is None and b2_client.contact("art_a") is None
     _, source = c1_client.orders_or_sample()
     assert source in ("c1_orders_jsonl", "c2_sample")
+
+
+def test_pending_money_is_never_called_credited(b2):
+    """B2 records a payout as pending on delivery; no money has moved yet."""
+    b2["status"]["ord_b2"] = "accepted"
+    call = pipeline.deliver(b2["orders"][0], platform=True)[0]
+    assert "credited" not in call.script_en and "will be sent" in call.script_en
+    assert "जमा कर दिए" not in voice.script("payment_credited", b2["orders"][0],
+                                             pipeline.settled_payouts(b2["orders"][0])[0], None, "hi")
+
+
+def test_paid_money_is_called_credited(b2):
+    b2["status"]["ord_b2"] = "accepted"
+    b2["payouts"][0]["status"] = "paid"
+    assert "has been credited" in pipeline.deliver(b2["orders"][0], platform=True)[0].script_en
+
+
+def test_no_call_when_consent_cannot_be_checked(b2, monkeypatch):
+    """B2 configured but unreachable: never assume she said yes."""
+    monkeypatch.setattr(b2_client, "contact", lambda aid: None)
+    call = voice.place_call("order_confirmed", b2["orders"][0], pipeline.payouts(b2["orders"][0])[0])
+    assert call.outcome.startswith("NOT_CALLED") and "consent" in call.outcome and call.duration_sec == 0

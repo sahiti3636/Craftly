@@ -94,18 +94,17 @@ class StubPassportSource:
                 ),
             ),
             PassportStep(
-                label="Catalogued from the artisan's own voice",
-                detail=(
-                    f"Described in {listing.source_language or 'her own language'} and "
-                    "transcribed automatically. No middleman wrote this listing."
-                ),
+                # Every listing this stub knows comes from the seed files,
+                # typed rather than spoken; B2 says the same of its seed.
+                label="Sample listing",
+                detail="Part of Craftly's sample catalogue, not catalogued from a voice note.",
                 at=listing.created_at,
             ),
             PassportStep(
                 label="Priced against a wage floor",
                 detail=(
-                    f"{listing.hours_worked:g} hours of work at the "
-                    f"{artisan.state or 'state'} minimum wage, plus materials."
+                    f"{listing.hours_worked:g} hours of her work and the cost of materials "
+                    "set the lowest price this piece can sell for."
                     if listing.hours_worked is not None
                     else "Hours of work still to be confirmed with the artisan."
                 ),

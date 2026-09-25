@@ -47,7 +47,14 @@ def passport_url(code: str) -> str:
     return f"{config.PUBLIC_URL}/p/{code}"
 
 
-def _chain_for(listing: Listing, code: str) -> list[tuple[str, str | None, datetime | None]]:
+#: Passports are read by buyers: "Described in Hindi", not "Described in hi".
+_LANGUAGE_NAMES = {
+    "en": "English", "hi": "Hindi", "te": "Telugu", "ta": "Tamil", "kn": "Kannada",
+    "bn": "Bengali", "gu": "Gujarati", "mr": "Marathi", "or": "Odia", "ur": "Urdu",
+}
+
+
+def _chain_for(listing: Listing, code: str, from_voice: bool = True) -> list[tuple[str, str | None, datetime | None]]:
     """The steps, as (label, detail, at).
 
     A step whose fact is missing says so rather than being dropped or
@@ -59,9 +66,12 @@ def _chain_for(listing: Listing, code: str) -> list[tuple[str, str | None, datet
     made_at = ", ".join(p for p in (artisan.village, artisan.district) if p) or None
 
     if listing.hours_worked is not None:
+        # Says what the floor is built from, not which wage table the price
+        # engine used: that differs between engines and is not a state's
+        # notified minimum wage.
         floor_detail = (
-            f"{listing.hours_worked:g} hours of work at the "
-            f"{artisan.state or 'state'} minimum wage, plus materials."
+            f"{listing.hours_worked:g} hours of her work and the cost of materials "
+            "set the lowest price this piece can sell for."
         )
     else:
         floor_detail = "Hours of work still to be confirmed with the artisan."
@@ -73,19 +83,19 @@ def _chain_for(listing: Listing, code: str) -> list[tuple[str, str | None, datet
             None,
         ),
         (
-            "Catalogued from the artisan's own voice",
-            (
-                f"Described in {listing.source_language or 'her own language'} and "
-                "transcribed automatically. No middleman wrote this listing."
-            ),
-            listing.created_at,
-        ),
+            ("Catalogued from the artisan's own voice",
+             f"Described in {_LANGUAGE_NAMES.get(listing.source_language or '', 'her own language')} and "
+             "transcribed automatically. No middleman wrote this listing.")
+            if from_voice
+            # Seeded listings were typed into a file, not spoken; say so.
+            else ("Sample listing", "Part of Craftly's sample catalogue, not catalogued from a voice note.")
+        ) + (listing.created_at,),
         ("Priced against a wage floor", floor_detail, None),
         ("Passport issued", f"Verification code {code}", None),
     ]
 
 
-def issue(db: Session, listing: Listing, code: str | None = None) -> Passport:
+def issue(db: Session, listing: Listing, code: str | None = None, from_voice: bool = True) -> Passport:
     """Mint a passport for a listing, or return the one it already has.
 
     Idempotent on purpose: publishing a listing twice must not mint a
@@ -103,7 +113,7 @@ def issue(db: Session, listing: Listing, code: str | None = None) -> Passport:
         issued_at=listing.created_at or datetime.now(timezone.utc),
     )
     db.add(passport)
-    for position, (label, detail, at) in enumerate(_chain_for(listing, code)):
+    for position, (label, detail, at) in enumerate(_chain_for(listing, code, from_voice)):
         db.add(
             PassportStep(
                 listing_id=listing.listing_id,

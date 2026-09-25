@@ -19,8 +19,9 @@ STRICT RULES:
 4. Do NOT mention price, cost, or how many hours it took to make — that
    information is for the artisan only, never for the customer-facing
    description.
-5. If material and/or craft_type are given, naturally work them into the
-   description (for SEO) — don't just list them mechanically.
+5. If product_type is given, the title must say what the object is
+   (e.g. "vase"). If material and/or craft_type are given, naturally work
+   them into the description (for SEO) — don't just list them mechanically.
 6. Write in a warm but factual e-commerce style. No markdown, no emoji.
 
 OUTPUT CONSTRAINTS:

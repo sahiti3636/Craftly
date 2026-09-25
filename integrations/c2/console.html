@@ -82,7 +82,7 @@ async function api(method, url) {
 }
 
 const calls = (list) => list.map((c) => `
-  <div class="call"><small>${esc(c.event)} &middot; ${esc(c.artisan_name)} &middot; ${esc(c.to_phone)} &middot; ${esc(c.language)} &middot; ${c.duration_sec}s &middot; ${esc(c.outcome)}</small>
+  <div class="call"><small>${esc(c.event)} &middot; ${esc(c.artisan_name)} &middot; ${esc(c.to_phone)} &middot; ${esc(c.language)} &middot; ${c.duration_sec ? `~${c.duration_sec}s (estimated)` : "not called"} &middot; ${esc(c.outcome)} <span class="tag sim">simulated call</span></small>
   ${esc(c.script)}${c.language !== "en" ? `<small>EN: ${esc(c.script_en)}</small>` : ""}</div>`).join("");
 
 async function init() {

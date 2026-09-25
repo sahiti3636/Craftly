@@ -50,6 +50,8 @@ class ExtractedFields(BaseModel):
 
     model_config = ConfigDict(validate_assignment=True)
 
+    #: What the object is ("vase", "basket"), as she named it.
+    product_type: str | None = None
     category: str | None = None
     craft_type: str | None = None
     material: str | None = None
@@ -74,6 +76,7 @@ class _LLMExtraction(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    product_type: str | None = None
     category: str | None = None
     craft_type: str | None = None
     material: str | None = None
@@ -125,6 +128,7 @@ def _parse_llm_response(raw: str) -> ExtractedFields | None:
     except ValidationError:
         return None
     return ExtractedFields(
+        product_type=llm.product_type,
         category=llm.category,
         craft_type=llm.craft_type,
         material=llm.material,

@@ -5,6 +5,10 @@ contain disfluencies, filler words, or code-switching between languages.
 
 Extract ONLY the following fields:
 
+- product_type: what the object itself is, in a word or two, in the
+  artisan's own word and script — do not translate it (e.g. "vase",
+  "basket", "dupatta" if she said so in English; "फूलदान", "टोकरी", "दीया"
+  if she said so in Hindi), or null if she did not say what it is.
 - category: the general product category (e.g. "home decor", "textiles",
   "jewelry"), or null if not stated or not clearly identifiable from what
   was actually said.
@@ -42,6 +46,7 @@ STRICT RULES:
 Output JSON schema — return exactly these keys and no others:
 
 {
+  "product_type": string or null,
   "category": string or null,
   "craft_type": string or null,
   "material": string or null,
@@ -49,8 +54,8 @@ Output JSON schema — return exactly these keys and no others:
   "dimensions": string or null,
   "product_description_facts": array of strings (can be empty),
   "confidence": an object mapping field name to a number between 0 and 1,
-    with ONE entry for each of category/craft_type/material/colours/
-    dimensions that you set to a non-null value. Do not include a
+    with ONE entry for each of product_type/category/craft_type/material/
+    colours/dimensions that you set to a non-null value. Do not include a
     confidence entry for a field you set to null, and do not include an
     entry for product_description_facts.
 }

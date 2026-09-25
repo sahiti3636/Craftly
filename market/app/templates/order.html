@@ -6,11 +6,11 @@
   <div class="note good">
     <strong>Order placed.</strong>
     {% if order.kind.value == 'bulk' %}
-      The cluster co-ordinator and every allocated artisan are being called now, in
-      their own language. You will have a confirmation before anything is made.
+      Every allocated artisan gets this order in Craftly Studio to accept. You
+      will have a confirmation before anything is made.
     {% else %}
-      {{ order.lines|length }} {{ 'maker is' if order.lines|length == 1 else 'makers are' }}
-      being called now, in their own language, to accept it.
+      {{ order.lines|length }} {{ 'maker gets' if order.lines|length == 1 else 'makers get' }}
+      it in Craftly Studio to accept.
     {% endif %}
   </div>
 
@@ -58,7 +58,7 @@
         </table>
         <p class="small muted" style="margin-bottom:0">
           This order is split across {{ line.split.allocations|length }} households.
-          Each is paid their own share on delivery, not through a middleman.
+          Each artisan's own share is recorded for her when the order is delivered.
         </p>
       </div>
     {% endif %}
@@ -67,13 +67,12 @@
   <div class="panel">
     <div class="panel-title">What happens next</div>
     <ol class="small" style="margin:0;padding-left:20px">
-      <li>Each artisan gets a phone call in her own language with the order and the amount.</li>
-      <li>She accepts, packs, and a courier pickup is booked to her village.</li>
-      <li>You get a waybill; she gets a call when the payment is credited.</li>
+      <li>Each artisan sees the order in Craftly Studio and accepts it.</li>
+      <li>A courier pickup is booked to her village, and she is called in her own language if she has agreed to calls.</li>
+      <li>On delivery, her share is recorded for payout.</li>
     </ol>
     <p class="small muted" style="margin-bottom:0">
-      Steps two and three are C2's work — courier booking and the AI voice call.
-      The order object above is what they read.
+      In this prototype the courier and the phone calls are simulated.
     </p>
   </div>
 

@@ -574,3 +574,29 @@ def test_logs_every_attempt(monkeypatch, _isolate_log_file):
     assert first["task"] == "title_description_en"
     assert first["attempt"] == 1
     assert first["error"] is None
+
+
+def test_colour_check_matches_whole_words_only():
+    """"red" in "textured", "gold" in "marigold", "kala" in "Kalamkari" are not colours."""
+    fields = ExtractedFields(category="art", craft_type="kalamkari", colours=["indigo"])
+    assert describe_module._invented_colours("A textured, layered Kalamkari piece inspired by temple art", fields) == set()
+    assert describe_module._invented_colours("Marigold motifs", fields) == set()
+    assert describe_module._invented_colours("A red-and-gold border", fields) == {"red", "gold"}
+
+
+def test_a_number_leaks_only_when_said_as_money_or_time():
+    """A bare "4" in "set of 4" is not her 4 hours; "₹1,500" is her cost."""
+    fields = ExtractedFields(material_cost_inr=1500, hours_worked=4)
+    leak = describe_module._leaks_cost_or_hours
+    assert not leak("A set of 4 lamps, 4 inches tall", fields)
+    assert leak("Made over 4 hours by hand", fields)
+    assert leak("Materials cost ₹1,500", fields)
+    assert leak("इसे बनाने में 4 घंटे लगे", fields)
+    assert leak("लागत 1500 रुपये", fields)
+
+
+def test_the_readback_names_what_she_made_not_the_technique():
+    fields = ExtractedFields(product_type="vase", craft_type="hand-painted", material="terracotta",
+                             material_cost_inr=200, hours_worked=5.0)
+    assert describe_module._build_summary_en(fields).startswith("This is your vase.")
+    assert describe_module._facts_for_marketing(fields)["product_type"] == "vase"

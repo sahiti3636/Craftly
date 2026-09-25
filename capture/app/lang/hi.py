@@ -211,17 +211,21 @@ NUMBER_WORDS.update({
     "छियानवे": 96, "सत्तानवे": 97, "अट्ठानवे": 98, "निन्यानवे": 99,
 })
 
-SCALE_WORDS.update({"सौ": 100, "हजार": 1000, "लाख": 100_000, "करोड": 10_000_000})
+# "सो" is how Whisper often spells सौ; like any scale word it only counts after a number.
+SCALE_WORDS.update({"सौ": 100, "सो": 100, "हजार": 1000, "लाख": 100_000, "करोड": 10_000_000})
 
 FRACTION_PREFIXES.update({"सवा": ("add", 0.25), "पौने": ("sub", 0.25), "साढे": ("add", 0.5)})
 
 STANDALONE_FRACTIONS.update({"डेढ": 1.5, "ढाई": 2.5, "अढाई": 2.5})
 
 # Whisper spells rupees several ways (long ू, a half य); all are the same word.
-CURRENCY_MARKERS.update({"रुपये", "रुपए", "रुपया", "रुपयों", "रुपयो", "रु", "रूपये", "रूपए", "रूपया", "रूप्ये", "रुप्ये", "रूपयों"})
+CURRENCY_MARKERS.update({"रुपये", "रुपए", "रुपया", "रुपयों", "रुपयो", "रु", "रूपये", "रूपए", "रूपया", "रूप्ये", "रुप्ये", "रूपयों",
+                         "रुपिये", "रुपीये", "रुप्य", "रूप्य", "रुपे"})
 
 DURATION_UNITS.update({
     "घंटा": "hours", "घंटे": "hours", "घंटों": "hours", "घण्टे": "hours", "घण्टा": "hours",
     "घन्टे": "hours", "घन्टा": "hours",
+    # How Whisper mishears घंटे; only ever read straight after a number.
+    "खंटे": "hours", "खंटा": "hours", "गंटे": "hours", "गंते": "hours", "कंटे": "hours",
     "दिन": "days", "दिनों": "days", "मिनट": "minutes",
 })

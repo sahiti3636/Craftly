@@ -16,6 +16,8 @@ import numpy as np
 import pytest
 
 os.environ.setdefault("CRAFTLY_ASR_MODEL_SIZE", "tiny")
+# The test suite never calls Groq: transcription runs on the local model.
+os.environ.setdefault("CRAFTLY_ASR_BACKEND", "local")
 os.environ.setdefault("CRAFTLY_ASR_DEVICE", "cpu")
 os.environ.setdefault("CRAFTLY_ASR_COMPUTE_TYPE", "int8")
 

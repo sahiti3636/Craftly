@@ -42,8 +42,13 @@ C1 = "http://127.0.0.1:8100"
 
 
 def python_cmd(service_dir: Path, *args: str) -> list[str]:
+    """uv if it is on PATH; else the service's own .venv (made by `uv sync`);
+    else this Python, which only works if it has every service's packages."""
     if shutil.which("uv"):
         return ["uv", "run", "--directory", str(service_dir), "python", *args]
+    venv = service_dir / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    if venv.exists():
+        return [str(venv), *args]
     return [sys.executable, *args]
 
 

@@ -23,7 +23,7 @@ SIMPLE_TRANSCRIPT = "cost paanch sau rupaye tha, teen ghante lage"
 
 
 def _fake_transcribe(text: str):
-    def _inner(audio_path, language_hint=None):
+    def _inner(audio_path, language_hint=None, **kwargs):
         return {"text": text, "detected_language": "hi", "confidence": 0.95, "duration_sec": 4.0}
 
     return _inner
@@ -235,3 +235,12 @@ def test_apply_corrections_does_not_mutate_the_original_listing(monkeypatch):
     apply_corrections(listing, fields, {"material_cost_inr": 500}, confirmed=True)
 
     assert listing.material_cost_inr == original_cost
+
+
+def test_a_fractional_cost_becomes_whole_rupees_rounded_up(monkeypatch):
+    """ "saadhe baarah rupaye" is 12.5; the listing holds whole rupees, and
+    rounding up never understates her floor. It used to crash the request."""
+    listing, fields = _draft(monkeypatch, transcript="saadhe baarah rupaye laga, teen ghante")
+    assert listing.material_cost_inr == 13
+    corrected, _ = apply_corrections(listing, fields, {"material_cost_inr": 20.2}, confirmed=True)
+    assert corrected.material_cost_inr == 21

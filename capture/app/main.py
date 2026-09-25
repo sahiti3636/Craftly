@@ -305,6 +305,8 @@ async def create_listing_endpoint(
     audio: UploadFile = File(...),
     artisan_id: str = Form(...),
     language_hint: str | None = Form(None),
+    # Studio's chosen language: used when nothing was heard or detection is unsure.
+    language_preference: str | None = Form(None),
 ) -> ListingCreateResponse:
     """The end-to-end path: image cleanup + transcription in parallel,
     then numbers parsing + LLM extraction, then merge, then description
@@ -332,6 +334,7 @@ async def create_listing_endpoint(
             audio_path=audio_tmp_path,
             image_original_url=image_url,
             language_hint=language_hint,
+            language_preference=language_preference,
         )
     finally:
         audio_tmp_path.unlink(missing_ok=True)

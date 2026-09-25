@@ -106,7 +106,7 @@ def test_speech_detected_as_urdu_is_transcribed_as_hindi(tmp_path, monkeypatch):
     calls = []
 
     class FakeModel:
-        def transcribe(self, path, language=None, task=None):
+        def transcribe(self, path, language=None, task=None, **kwargs):
             calls.append(language)
             text = "दो सौ रुपये" if language == "hi" else "دو سو روپے"
             return [SimpleNamespace(text=text)], SimpleNamespace(
@@ -130,7 +130,7 @@ def test_an_explicit_hint_is_never_second_guessed(tmp_path, monkeypatch):
     calls = []
 
     class FakeModel:
-        def transcribe(self, path, language=None, task=None):
+        def transcribe(self, path, language=None, task=None, **kwargs):
             calls.append(language)
             return [SimpleNamespace(text="x")], SimpleNamespace(language=language, language_probability=1.0)
 
@@ -149,7 +149,7 @@ def test_detection_only_picks_a_language_artisans_speak(tmp_path, monkeypatch):
     calls = []
 
     class FakeModel:
-        def transcribe(self, path, language=None, task=None):
+        def transcribe(self, path, language=None, task=None, **kwargs):
             calls.append(language)
             info = SimpleNamespace(language="nn", language_probability=0.4,
                                    all_language_probs=[("nn", 0.4), ("en", 0.35), ("no", 0.2), ("hi", 0.05)])
@@ -159,3 +159,56 @@ def test_detection_only_picks_a_language_artisans_speak(tmp_path, monkeypatch):
     result = asr_module.transcribe(make_tone_wav(tmp_path / "clip.wav", duration_sec=2.0))
     assert calls == [None, "en"]
     assert result["detected_language"] == "en"
+
+
+def _fake(monkeypatch, text, language, probability, probs=None):
+    from types import SimpleNamespace
+
+    import app.asr as asr_module
+
+    calls = []
+
+    class FakeModel:
+        def transcribe(self, path, language=None, task=None, **kwargs):
+            calls.append(language)
+            info = SimpleNamespace(language=lang_detected, language_probability=probability,
+                                   all_language_probs=probs or [(lang_detected, probability)])
+            return ([SimpleNamespace(text=text)] if text else []), info
+
+    lang_detected = language
+    monkeypatch.setattr(asr_module, "_get_model", lambda: FakeModel())
+    return asr_module, calls
+
+
+def test_silence_is_no_speech_in_her_language(tmp_path, monkeypatch):
+    """Whisper invents "You" on silence and calls it English; with VAD there
+    is no text, and the language is the one she chose."""
+    from tests.conftest import make_tone_wav
+
+    asr_module, calls = _fake(monkeypatch, "", "en", 0.4)
+    result = asr_module.transcribe(make_tone_wav(tmp_path / "c.wav", duration_sec=2.0), language_preference="hi")
+    assert result["text"] == "" and result["detected_language"] == "hi"
+
+
+def test_unsure_detection_defers_to_her_language(tmp_path, monkeypatch):
+    from tests.conftest import make_tone_wav
+
+    asr_module, calls = _fake(monkeypatch, "kuch shabd", "en", 0.3)
+    result = asr_module.transcribe(make_tone_wav(tmp_path / "c.wav", duration_sec=2.0), language_preference="hi")
+    assert calls == [None, "hi"] and result["detected_language"] == "hi"
+
+
+def test_clear_speech_is_not_overridden_by_her_preference(tmp_path, monkeypatch):
+    from tests.conftest import make_tone_wav
+
+    asr_module, calls = _fake(monkeypatch, "two hundred rupees", "en", 0.95)
+    result = asr_module.transcribe(make_tone_wav(tmp_path / "c.wav", duration_sec=2.0), language_preference="hi")
+    assert calls == [None] and result["detected_language"] == "en"
+
+
+def test_confidence_is_for_the_language_used(tmp_path, monkeypatch):
+    from tests.conftest import make_tone_wav
+
+    asr_module, _ = _fake(monkeypatch, "कुछ", "ur", 0.6, probs=[("ur", 0.6), ("hi", 0.3), ("en", 0.1)])
+    result = asr_module.transcribe(make_tone_wav(tmp_path / "c.wav", duration_sec=2.0))
+    assert result["detected_language"] == "hi" and result["confidence"] == 0.9  # Urdu + Hindi

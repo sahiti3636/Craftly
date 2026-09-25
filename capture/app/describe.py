@@ -52,25 +52,27 @@ _SUMMARY_MAX_WORDS = 25
 # to mechanically check for invention (material/craft_type are open
 # vocabulary and can't be checked this way). Not exhaustive; extend as
 # needed.
+# Romanized and Devanagari: extraction may record the colour as she said it
+# ("सफेद"), and the English copy then rightly says "white".
 _COLOUR_WORDS: dict[str, list[str]] = {
-    "red": ["red", "laal", "lal"],
-    "gold": ["gold", "golden", "sunehra", "sunehri"],
-    "green": ["green", "hara", "hari"],
-    "blue": ["blue", "neela", "neeli", "nila"],
-    "yellow": ["yellow", "peela", "peeli"],
-    "black": ["black", "kala", "kaala", "kali"],
-    "white": ["white", "safed", "safaid"],
-    "orange": ["orange", "naranji", "santari"],
-    "pink": ["pink", "gulabi"],
-    "purple": ["purple", "baingani", "jamuni"],
-    "brown": ["brown", "bhura", "bhoora"],
-    "silver": ["silver", "chandi"],
-    "grey": ["grey", "gray"],
-    "maroon": ["maroon"],
+    "red": ["red", "laal", "lal", "लाल"],
+    "gold": ["gold", "golden", "sunehra", "sunehri", "सुनहरा", "सुनहरी", "सुनहरे"],
+    "green": ["green", "hara", "hari", "हरा", "हरी", "हरे"],
+    "blue": ["blue", "neela", "neeli", "nila", "नीला", "नीली", "नीले"],
+    "yellow": ["yellow", "peela", "peeli", "पीला", "पीली", "पीले"],
+    "black": ["black", "kala", "kaala", "kali", "काला", "काले"],
+    "white": ["white", "safed", "safaid", "सफेद", "सफ़ेद", "श्वेत"],
+    "orange": ["orange", "naranji", "santari", "नारंगी", "केसरिया"],
+    "pink": ["pink", "gulabi", "गुलाबी"],
+    "purple": ["purple", "baingani", "jamuni", "बैंगनी", "जामुनी"],
+    "brown": ["brown", "bhura", "bhoora", "भूरा", "भूरी", "भूरे"],
+    "silver": ["silver", "chandi", "चांदी", "चाँदी"],
+    "grey": ["grey", "gray", "स्लेटी", "सलेटी"],
+    "maroon": ["maroon", "मैरून"],
     "beige": ["beige"],
-    "turquoise": ["turquoise", "firozi"],
-    "cream": ["cream"],
-    "multicolour": ["multicolour", "multicolor", "rangbirangi", "rangberangi"],
+    "turquoise": ["turquoise", "firozi", "फ़िरोज़ी", "फिरोजी"],
+    "cream": ["cream", "क्रीम"],
+    "multicolour": ["multicolour", "multicolor", "rangbirangi", "rangberangi", "रंगबिरंगी", "रंग-बिरंगी", "रंगबिरंगा"],
 }
 
 
@@ -107,7 +109,8 @@ class _SpokenSummary(BaseModel):
 def _has_descriptive_facts(fields: ExtractedFields) -> bool:
     """Whether there's enough to write a title/description about."""
     return bool(
-        fields.category
+        fields.product_type
+        or fields.category
         or fields.craft_type
         or fields.material
         or fields.colours
@@ -140,12 +143,15 @@ def _format_number(value: int | float) -> str:
 
 
 def _mentioned_colours(text: str) -> set[str]:
+    # Whole words only: as substrings "red" was found in "textured" and
+    # "inspired", "gold" in "marigold" and "kala" in "Kalamkari", so good
+    # copy was rejected for colours it never named.
     text_lower = text.lower()
-    found = set()
-    for canonical, variants in _COLOUR_WORDS.items():
-        if any(variant in text_lower for variant in variants):
-            found.add(canonical)
-    return found
+    return {
+        canonical
+        for canonical, variants in _COLOUR_WORDS.items()
+        if any(re.search(rf"(?<![a-z0-9ऀ-ॿ]){re.escape(variant)}(?![a-z0-9ऀ-ॿ])", text_lower) for variant in variants)
+    }
 
 
 def _allowed_colours(fields: ExtractedFields) -> set[str]:
@@ -162,14 +168,26 @@ def _invented_colours(text: str, fields: ExtractedFields) -> set[str]:
     return _mentioned_colours(text) - _allowed_colours(fields)
 
 
+# A number is a leak only when it is said as money or as time: a bare "4"
+# in "set of 4" or "4 inches" is not her 4 hours of work.
+_MONEY = r"(?:₹|rs\.?|inr|rupees?|rupaye|rupye|रुपये|रुपए|रुपया)"
+_TIME = r"(?:hours?|hrs?|ghante|ghanta|घंटे|घंटा|घंटों)"
+
+
+def _number_pattern(value: int | float) -> str:
+    """The number as text may write it: 1500, 1,500 or 1,50,000."""
+    digits = _format_number(value)
+    return re.escape(digits) if "." in digits else ",?".join(digits)
+
+
 def _leaks_cost_or_hours(text: str, fields: ExtractedFields) -> bool:
     if fields.material_cost_inr is not None:
-        cost_str = _format_number(fields.material_cost_inr)
-        if re.search(rf"\b{re.escape(cost_str)}\b", text):
+        cost = _number_pattern(fields.material_cost_inr)
+        if re.search(rf"{_MONEY}\s*{cost}\b|\b{cost}\s*(?:/-\s*)?{_MONEY}", text, re.IGNORECASE):
             return True
     if fields.hours_worked is not None:
-        hours_str = _format_number(fields.hours_worked)
-        if re.search(rf"\b{re.escape(hours_str)}\b", text):
+        hours = _number_pattern(fields.hours_worked)
+        if re.search(rf"\b{hours}\s*-?\s*{_TIME}", text, re.IGNORECASE):
             return True
     return False
 
@@ -207,6 +225,7 @@ def _facts_for_marketing(fields: ExtractedFields) -> dict:
     # Deliberately excludes material_cost_inr and hours_worked: that
     # information is for the artisan only, never customer-facing copy.
     return {
+        "product_type": fields.product_type,
         "category": fields.category,
         "craft_type": fields.craft_type,
         "material": fields.material,
@@ -307,7 +326,9 @@ def _generate_marketing_copy(fields: ExtractedFields, lang: str) -> tuple[str, s
 
 
 def _product_label(fields: ExtractedFields) -> str | None:
-    return fields.category or fields.craft_type or fields.material
+    # What she made, as she named it ("vase") — not the technique: "This is
+    # your hand painting" for a painted vase was the old readback.
+    return fields.product_type or fields.category or fields.craft_type or fields.material
 
 
 def _build_summary_en(fields: ExtractedFields) -> str:

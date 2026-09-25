@@ -111,7 +111,8 @@ def script(event: str, order: Order, payout: Payout, shipment: Shipment | None, 
         if event == "payment_credited":
             return (
                 f"{head} बधाई हो! ऑर्डर {order.order_id} का सामान पहुँच गया है"
-                + (f" और {inr(payout.amount_inr)} आपके खाते में जमा कर दिए गए हैं।" if payout.amount_inr is not None
+                + ((f" और {inr(payout.amount_inr)} आपके खाते में जमा कर दिए गए हैं।" if payout.payout_status == "paid"
+                    else f" और {inr(payout.amount_inr)} आपके खाते में भेजे जाएँगे।") if payout.amount_inr is not None
                    else "। भुगतान की राशि की पुष्टि हमारी टीम अलग से करेगी।")
                 + " धन्यवाद।"
             )
@@ -137,8 +138,12 @@ def script(event: str, order: Order, payout: Payout, shipment: Shipment | None, 
                 "for you yet. Please add it in Craftly Studio and the payment will be sent."
             )
         if event == "payment_credited":
+            # "Credited" only once B2 says the money moved; a settled payout
+            # is recorded but not yet sent (there is no payment rail yet).
+            credited = payout.payout_status == "paid"
             money = (
-                f" and {inr(payout.amount_inr)} has been credited to your account."
+                (f" and {inr(payout.amount_inr)} has been credited to your account." if credited
+                 else f" and {inr(payout.amount_inr)} will be sent to your account.")
                 if payout.amount_inr is not None
                 else ". Our team will confirm the payment amount separately."
             )
@@ -161,15 +166,19 @@ def place_call(
     already = next((c for c in _CALLS if c.call_id == call_id), None)
     if already is not None:  # idempotent, like the courier booking
         return already
-    consented = contact is None or bool(contact.get("ai_call_consent"))
-    if contact is None:
-        outcome = "ACKNOWLEDGED (pressed 1)" if event == "order_confirmed" else "MESSAGE_DELIVERED"
+    # No telephony exists: a "placed" call is simulated, and nothing collects
+    # a key press, so no outcome claims she answered or pressed anything.
+    placed = "PLACED (simulated; no reply is collected)"
+    if contact is None and b2_client.enabled():
+        consented, outcome = False, "NOT_CALLED (could not check her consent with Craftly)"
+    elif contact is None:
+        consented, outcome = True, placed  # C2 on its own, without B2: a simulation only
     elif not contact.get("has_account"):
-        outcome = "NOT_CALLED (no Craftly Studio account, so no phone or consent on file)"
-    elif not consented:
-        outcome = "NOT_CALLED (AI calls are switched off in her Craftly Studio settings)"
+        consented, outcome = False, "NOT_CALLED (no Craftly Studio account, so no phone or consent on file)"
+    elif not contact.get("ai_call_consent"):
+        consented, outcome = False, "NOT_CALLED (AI calls are switched off in her Craftly Studio settings)"
     else:
-        outcome = "ACKNOWLEDGED (pressed 1)" if event == "order_confirmed" else "MESSAGE_DELIVERED"
+        consented, outcome = True, placed
     log = CallLog(
         call_id=call_id,
         event=event,

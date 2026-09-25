@@ -26,7 +26,7 @@ def client():
 
 @pytest.fixture(autouse=True)
 def _mock_heavy_dependencies(monkeypatch, tmp_path):
-    def fake_transcribe(audio_path, language_hint=None):
+    def fake_transcribe(audio_path, language_hint=None, **kwargs):
         return {
             "text": "paanch sau rupaye, teen ghante",
             "detected_language": "hi",
@@ -119,7 +119,7 @@ def test_create_listing_returns_well_formed_image_and_audio_urls(client):
 
 
 def test_create_listing_degrades_on_asr_failure_instead_of_erroring(client, monkeypatch):
-    def failing_transcribe(audio_path, language_hint=None):
+    def failing_transcribe(audio_path, language_hint=None, **kwargs):
         raise RuntimeError("ffmpeg exploded")
 
     monkeypatch.setattr(pipeline_module, "transcribe", failing_transcribe)

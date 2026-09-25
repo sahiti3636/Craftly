@@ -59,7 +59,8 @@ _STRINGS = {
         "material": "{material}, {craft}",
         "price": "{price}",
         "share": "{amount} of it reaches {name}",
-        "floor": "Priced above a minimum-wage floor, not below the market",
+        "floor": "Priced above her wage floor",
+        "floor_at": "Priced at her wage floor: the market pays less",
         "verify": "Scan to meet the maker",
         "code": "Passport {code}",
         "years": "{years} years at this craft",
@@ -77,7 +78,8 @@ _STRINGS = {
         "material": "{material}, {craft}",
         "price": "{price}",
         "share": "इसमें से {amount} {name} तक पहुँचता है",
-        "floor": "न्यूनतम मज़दूरी से ऊपर की कीमत, बाज़ार के नीचे नहीं",
+        "floor": "मज़दूरी की न्यूनतम सीमा से ऊपर की कीमत",
+        "floor_at": "मज़दूरी की न्यूनतम सीमा पर कीमत, बाज़ार इससे कम देता है",
         "verify": "कारीगर से मिलने के लिए स्कैन करें",
         "code": "पासपोर्ट {code}",
         "years": "{years} साल से यही काम",
@@ -162,7 +164,7 @@ def script(
                 amount=rupees(quote.artisan_take_home_inr),
                 name=card.artisan_name.split()[0],
             ),
-            kicker=s["floor"],
+            kicker=s["floor_at"] if quote.below_floor else s["floor"],
             # Digits, not "₹": a voice reads "₹3,750" unpredictably and
             # "3,750 rupees" the same way every time.
             spoken=s["say_price"].format(
