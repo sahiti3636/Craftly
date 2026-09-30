@@ -229,33 +229,6 @@ web console.
 
 Full docs: [`integrations/README.md`](integrations/README.md)
 
-## What's simulated for this demo
-
-This is a hackathon prototype, so a few pieces stand in for infrastructure
-that doesn't exist yet, each behind the same interface a real integration
-would use:
-
-- **Marketplace push, courier booking, and the AI voice call** in
-  `integrations/` build their payloads from real, correctly-priced order
-  data, but the actual network call to Amazon/Flipkart/eBay, the courier,
-  and the telephony provider is simulated — there's no external account for
-  any of them yet. "Going live" for any of these is a self-contained change
-  inside `integrations/`.
-- **The weekly demand alert** is computed for real from order history; it's
-  only labelled "simulated" when run against sample orders because there
-  isn't real order volume yet.
-- **`market/`'s seed catalogue** (artisans, listings, product photos) is
-  demo data — the product photos are procedurally generated colour
-  swatches rather than real craft photography, and drop in by filename once
-  real photos exist.
-- **`engines/`'s demo artisan roster** used for bulk-order allocation is a
-  fictional cluster, standing in for pulling real cluster membership from
-  the platform.
-- **OTP codes are echoed back in the API response** rather than sent by SMS,
-  since there's no SMS gateway wired up — surfaced openly at `/health`.
-- **Text-to-speech** in `capture/` uses a lightweight dev backend, swappable
-  for a production TTS service later.
-
 ## Tests
 
 Every service ships its own test suite (run with `pytest` inside that
